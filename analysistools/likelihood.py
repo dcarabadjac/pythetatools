@@ -2,10 +2,13 @@ from array import array
 import ROOT
 import numpy as np
 from .global_names import *
+from .general_functions import show_minor_ticks
 import subprocess
+import sys
+
 
 #Downloads already merged (by throws) margtemplate file
-def download_merged_margtemplates(dirname, statonly=False):
+def download_margtemplates(dirname, statonly=False):
     if not statonly:
         scp_command = f"scp dcarabad@cca.in2p3.fr:" \
                   f"/sps/t2k/dcarabad/Develop/OA2024/P-theta/inputs/outputs/{dirname}/merged.root Root_files/{dirname}_merged.root"
@@ -15,7 +18,7 @@ def download_merged_margtemplates(dirname, statonly=False):
     # Execute the SCP command using subprocess
     subprocess.run(scp_command, shell=True)
 
-def read_asimov_fit_1D(filename):
+def read_asimov_fit_1D(filename, mo='both'):
     # Open the ROOT file
     file = ROOT.TFile(filename, "READ")
     if file.IsZombie():
@@ -47,12 +50,12 @@ def read_asimov_fit_1D(filename):
         if branch_name in osc_param_name:
             noscparams += 1
             print("Grid for oscillation parameter found: {}".format(branch_name))
-            grid_osc_param = branch_name
+            param_name = branch_name
             branch_type_code = branch.GetLeaf(branch_name).GetTypeName()
         elif branch_name=='mh':
             ndiscrparams = 1
             print("Grid for mh found")
-            branch_type_code = branch.GetLeaf(branch_name).GetTypeName()
+            
         else:
             continue
         
@@ -62,9 +65,14 @@ def read_asimov_fit_1D(filename):
             print(f"Unsupported branch type: {branch_type_code} for branch {branch_name}")
             continue
 
-        grid_branch_cont = array(branch_type, [0])
-        input_tree.SetBranchAddress(grid_osc_param, grid_branch_cont)
-
+    if ndiscrparams==1:
+        mo_value = array('d', [0])
+        input_tree.SetBranchAddress('mh', mo_value)
+    else:
+        mo_value = mo
+        
+    grid_branch_cont = array(branch_type, [0])   
+    input_tree.SetBranchAddress(param_name, grid_branch_cont)
     AvNLLtot_branch_cont = array('d', [0])
     input_tree.SetBranchAddress("AvNLLtot", AvNLLtot_branch_cont)
     
@@ -74,15 +82,46 @@ def read_asimov_fit_1D(filename):
         raise ValueError("Error: Continous osc. param. not found in the tree  ")
         
     ngrid = nEntries//(1+ndiscrparams)
-    print("Number of grid point for {} = {}".format(grid_osc_param, ngrid))
+    print("Number of grid point for {} = {}".format(param_name, ngrid))
 
-    AvNLLtot = np.zeros((ndiscrparams+1, ngrid))
-    osc_array_grid = np.zeros(ngrid)
+    AvNLLtot = {0: np.zeros(ngrid), 1: np.zeros(ngrid)} if ndiscrparams==1 else {mo: np.zeros(ngrid)}
+    grid = np.zeros(ngrid)
 
     for entry in range(nEntries):
         input_tree.GetEntry(entry)
-        AvNLLtot[entry%(ndiscrparams+1)][entry//(ndiscrparams+1)] = AvNLLtot_branch_cont[0]
-        osc_array_grid[entry//(ndiscrparams+1)] = grid_branch_cont[0]
+        AvNLLtot[int(mo_value[0])][entry//(ndiscrparams+1)] = AvNLLtot_branch_cont[0]
+        grid[entry//(ndiscrparams+1)] = grid_branch_cont[0]
 
-    return AvNLLtot, osc_array_grid, grid_osc_param
+    return grid, AvNLLtot, param_name
+
+class Dchi2:
+    def __init__(self, grid, avnllh, param_name, kind='2D'):
+        self.grid = grid
+        self.avnllh = avnllh
+        self.param_name = param_name
+        if kind == '2D':
+            minimum = {key: min(np.min(array) for array in self.avnllh.values()) for key in self.avnllh.keys()} 
+        elif kind == 'conditional':
+            minimum = {key: np.min(self.avnllh[key]) for key in self.avnllh.keys()} 
+            
+        self.dchi2 = {key: 2*(value-minimum[key]) for key, value in self.avnllh.items()}
+        if len(list(self.dchi2.keys())) == 2:
+            self.mo = 'both'
+        else:
+            self.mo = self.dchi2.keys()[0]
+
+    def plot(self, ax, mo=None, **kwargs):
+        if not mo is None:
+            ax.plot(self.grid, self.dchi2[mo], color=color_mo[mo], label=mo_to_label[mo], **kwargs)
+            ax.set_xlabel(osc_param_name_to_xlabel[self.param_name][mo])
+        else:
+            for key, value in self.dchi2.items():
+                ax.plot(self.grid, value, color=color_mo[key], label=mo_to_label[key], **kwargs)
+            ax.set_xlabel(osc_param_name_to_xlabel[self.param_name][self.mo])    
+            
+        ax.set_ylabel(r'$\Delta \chi^2$')
+        show_minor_ticks(ax)
+        ax.set_ylim(0)
+        ax.legend(edgecolor='white')
+
     

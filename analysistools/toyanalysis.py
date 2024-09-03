@@ -1,6 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from .global_names import tag, nuflav_to_xlabel, nuflav_to_xtickspos, nuflav_to_xmax, sample_to_nuflav, sample_to_title, rev_afmhot
+from .global_names import tag, nuflav_to_xlabel, nuflav_to_xtickspos, nuflav_to_xmax, sample_to_nuflav, sample_to_title, rev_afmhot, nuflav_to_xvar
 import subprocess
 from array import array
 import ROOT
@@ -9,10 +9,8 @@ def get_toy(filename):
     toy = ToyXp([])
     file = ROOT.TFile(filename, "READ")
     
-    # Get the list of keys in the file
     keys = file.GetListOfKeys()
     
-    # Loop over the keys and print the names of histograms
     for key in keys:
         obj = key.ReadObj()
         if isinstance(obj, ROOT.TH2D):  
@@ -24,7 +22,6 @@ def get_toy(filename):
             xedges, z = get_hist1D(filename, obj.GetName())
             toy.append_sample(Sample1D(obj.GetName()[1:], xedges, z))
     return toy
-            
 
 def bin_sample1D(title, xvar, xedges):
     hist = np.histogram(xvar, bins=xedges)
