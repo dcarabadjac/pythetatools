@@ -124,4 +124,16 @@ class Dchi2:
         ax.set_ylim(0)
         ax.legend(edgecolor='white')
 
+    def find_confidence_level(self, nsigma):
+        roots = []   
+        c = np.sqrt(nsigma)
     
+        for i in range(len(self.grid) - 1):
+            y0, y1 = self.dchi2[i], self.dchi2[i + 1]
+            
+            if (y0 - c) * (y1 - c) < 0:
+                x0, x1 = x[i], x[i + 1]
+                root = x0 + (x1 - x0) * (c - y0) / (y1 - y0)
+                roots.append(root)    
+        return roots
+

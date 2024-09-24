@@ -1,6 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from .global_names import tag, nuflav_to_xlabel, nuflav_to_xtickspos, nuflav_to_xmax, sample_to_nuflav, sample_to_title, rev_afmhot, nuflav_to_xvar
+from .global_names import *
 import subprocess
 from array import array
 import ROOT
@@ -15,12 +15,12 @@ def get_toy(filename):
         obj = key.ReadObj()
         if isinstance(obj, ROOT.TH2D):  
             xedges, yedges, z = get_hist2D(filename, obj.GetName())
-            toy.append_sample(Sample2D(obj.GetName()[1:], xedges, yedges, z))
+            toy.append_sample(Sample2D(obj.GetName()[1:], xedges, yedges, z, file.Get(f"{obj.GetName()[1:]}_analysis_type").GetTitle()))
     for key in keys:  
         obj = key.ReadObj()
         if isinstance(obj, ROOT.TH1D) and (not (obj.GetName()[1:] in toy.get_titles())):
             xedges, z = get_hist1D(filename, obj.GetName())
-            toy.append_sample(Sample1D(obj.GetName()[1:], xedges, z))
+            toy.append_sample(Sample1D(obj.GetName()[1:], xedges, z, file.Get(f"{obj.GetName()[1:]}_analysis_type").GetTitle()))
     return toy
 
 def bin_sample1D(title, xvar, xedges):
@@ -44,7 +44,7 @@ def download_toyxp(path):
                   f"{path} /Users/denis.carabadjac/Python/analysistools/inputs/ToyXp/"
     subprocess.run(scp_command, shell=True)
 
-def get_tree(filename, sample_title, ientry):
+def get_tree(filename, sample_title, ientry, binning):
 
     file = ROOT.TFile(filename, "READ")
     
@@ -59,7 +59,7 @@ def get_tree(filename, sample_title, ientry):
     xvar_branch =  ROOT.std.vector('double')()
     t_branch =  ROOT.std.vector('double')()
 
-    input_tree.SetBranchAddress(f"{nuflav_to_xvar[sample_to_nuflav[sample_title]]}_{sample_title}", xvar_branch)
+    input_tree.SetBranchAddress(f"{binning_to_xvar[binning]}_{sample_title}", xvar_branch)
     input_tree.SetBranchAddress(f"t_{sample_title}", t_branch)
 
     nEntries = input_tree.GetEntries()
@@ -118,17 +118,17 @@ def get_hist1D(filename, histname):
 
 
 class Sample:
-    def __init__(self, title, z):
+    def __init__(self, title, z, binning):
         z = np.array(z)
         self.__z = z
         self.__title = title
+        self.__binning = binning
         self.__nbins = self.z.size
         self.__shape = self.z.shape
-        self.__nuflav = sample_to_nuflav[title]
+    def __str__(self):
+        return f"Sample:{self.title}; shape:{self.shape}; Total number of events:{self.nevents()}"
     def nevents(self):
         return np.sum(self.z)
-    def print(self):
-        print(f"Sample:{self.title}; shape:{self.shape}; Total number of events:{self.nevents()}")
     @property
     def z(self):
         return self.__z
@@ -139,8 +139,8 @@ class Sample:
     def shape(self):
         return self.__shape
     @property
-    def nuflav(self):
-        return self.__nuflav
+    def binning(self):
+        return self.__binning
     @property
     def title(self):
         return self.__title
@@ -148,8 +148,8 @@ class Sample:
         self.__z = new_z
 
 class Sample1D(Sample):
-    def __init__(self, title, xedges, z):
-        super().__init__(title, z)
+    def __init__(self, title, xedges, z, binning):
+        super().__init__(title, z, binning)
         self.__xedges = np.array(xedges)
     @property
     def xedges(self):
@@ -164,9 +164,9 @@ class Sample1D(Sample):
         ax.set_title(sample_to_title[self.title], loc='left')
         if wtag:
             ax.set_title(tag, loc='right')
-        _=ax.set_xticks(nuflav_to_xtickspos[self.nuflav])
-        ax.set_xlim(0.001, nuflav_to_xmax[self.nuflav])
-        ax.set_xlabel(nuflav_to_xlabel[self.nuflav])
+        _=ax.set_xticks(binning_to_xtickspos[self.binning])
+        ax.set_xlim(0.001, binning_to_xmax[self.binning])
+        ax.set_xlabel(binning_to_xlabel[self.binning])
         ax.set_ylabel('Number of events')
         
     def rebin(self, new_xedges):
@@ -188,11 +188,10 @@ class Sample1D(Sample):
         new_z = self.z[start:stop]
         return Sample1D(self.title, new_xedges, new_z)
 
-
     
 class Sample2D(Sample):
-    def __init__(self, title, xedges, yedges, z):
-        super().__init__(title, z)
+    def __init__(self, title, xedges, yedges, z, binning):
+        super().__init__(title, z, binning)
         self.__xedges = xedges
         self.__yedges = yedges
     @property
@@ -212,11 +211,11 @@ class Sample2D(Sample):
         ax.set_title(sample_to_title[self.title], loc='left', fontsize=20)
         if wtag:
             ax.set_title(tag, loc='right', fontsize=20)
-        _=ax.set_xticks(nuflav_to_xtickspos[self.nuflav])
+        _=ax.set_xticks(binning_to_xtickspos[self.binning])
         _=ax.set_yticks([30*i for i in range(7)]) #Make ticks step 30 degrees
-        ax.set_xlim(0.001, nuflav_to_xmax[self.nuflav])
+        ax.set_xlim(0.001, binning_to_xmax[self.binning])
         ax.set_ylim(0, 180)
-        ax.set_xlabel(nuflav_to_xlabel[self.nuflav])
+        ax.set_xlabel(binning_to_xlabel[self.binning])
         ax.set_ylabel("Angle [degrees]")
         
     def rebin(self, new_xedges, new_yedges):
@@ -257,11 +256,11 @@ class ToyXp:
                 return sample
         raise ValueError("Sample {title} not found in this toy")
 
-    def print(self):
-        print(f'{len(self.samples)} samples are included in this toy:')
-        for sample in self.samples:
-            sample.print()
-
+    def __str__(self):
+        result = f'{len(self.samples)} samples are included in this toy: \n'
+        result += '\n'.join(str(sample) for sample in self.samples)
+        return result
+        
     def append_sample(self, sample):
         self.samples.append(sample)
 
