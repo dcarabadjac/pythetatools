@@ -3,11 +3,21 @@ from matplotlib import pyplot as plt
 from .global_names import *
 import subprocess
 from array import array
-import ROOT
+#import ROOT
 import uproot
 
-
 def get_samples_info(filename):
+    """Gets information of the samples (the titles and analysis-type's) stored in PTGenerateXp output root file 
+    
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
+    Returns
+    ------
+    Dictionary 
+        A dictionary according to following format: {sample_title: analysis_type}, where sample_title in the title of the sample, analysis_type is the binning of this sample (e-theta, PTheta or Erec)
+    """
     samples_dict = {}
     
     with uproot.open(filename) as file:
@@ -20,6 +30,19 @@ def get_samples_info(filename):
     return samples_dict
 
 def load_hists(filename):
+    """Loads asimovs from PTGenerateXp output root file 
+
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
+
+    Returns
+    ------
+    ToyXp 
+        An object of ToyXp class containt all the asimovs stored in the root file
+    """
+    
     samples_dict = get_samples_info(filename)
     toy = ToyXp([])
     
@@ -37,7 +60,22 @@ def load_hists(filename):
     return toy
 
 def load_tree(filename, sample_title, analysis_type, itoy):
+    """Loads a unbinned toy for a given sample
 
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
+    sample_title : string
+        The title of the sample. For example, 'nue1R', 'numubar1R', 'numucc1pi' etc
+    itoy : 
+        The index of the toy to be loaded.
+    Returns
+    ------
+    Tuple 
+        A tuple (x, y) where x(y) is array of values of the observable on the x(y) axis. For 1D sample y is None
+
+    """
     with uproot.open(filename) as file:
         input_tree = file.get("ToyXp")
         
@@ -59,21 +97,39 @@ def load_tree(filename, sample_title, analysis_type, itoy):
         return (np.array(xvar), )
 
 def load_toys(filename, itoy):
-    samples_dict = get_samples_info(filename)
-    toy = ToyXp([])
-    with uproot.open(filename) as file:
-        for sample_title, analysis_type in samples_dict.items():
-            sample = bin_sample1D(sample_title, load_tree(filename, sample_title, analysis_type, itoy)[0], erec_binning_nominal)
-            toy.append_sample(sample)
-    return toy
-
-def load(filename, type, itoy=None):
-    """Loads the ToyXp root file
+    """Loads and bins a toy from PTGenerateXp output root file 
 
     Parameters
     ----------
     filename : string
-        The filename of ToyXP root file
+        The filename of PTGenerateXp output root file
+    itoy : 
+        The index of toy to be loaded.
+    Returns
+    ------
+    ToyXp
+        The object of ToyXp class which stores either asimov data set and a toy data set
+
+    """
+    samples_dict = get_samples_info(filename)
+    toy = ToyXp([])
+    with uproot.open(filename) as file:
+        for sample_title, analysis_type in samples_dict.items():
+            if analysis_type_to_dim[analysis_type] == '1D':
+                sample = bin_sample1D(sample_title, *load_tree(filename, sample_title, analysis_type, itoy), analysis_type)
+                toy.append_sample(sample)
+            elif analysis_type_to_dim[analysis_type] == '2D':
+                sample = bin_sample2D(sample_title, *load_tree(filename, sample_title, analysis_type, itoy), analysis_type)
+                toy.append_sample(sample)
+    return toy
+
+def load(filename, type, itoy=None):
+    """Loads a toy/asimov from output root file of PTGenerateXp
+
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
     type : string
         'asimov' - This option allows to load the histograms for each sample from the file
         'toy' - This option allows to load the tree for each sample from the file (the trees will be binned in the histograms)
@@ -86,10 +142,8 @@ def load(filename, type, itoy=None):
 
     Examples
     --------
-    BlaBla
-    
-    >>> print([i for i in example_generator(4)])
-    [0, 1, 2, 3]
+    >>> filename = "/Users/denis.carabadjac/Python/pythetatools/inputs/ToyXp/ToyXP_00000.root"
+    >>> toy = pythetatools.toyanalysis.load(filename, type="toy", itoy=1)
 
     """
     
@@ -101,9 +155,48 @@ def load(filename, type, itoy=None):
 
     return toy
 
-def bin_sample1D(title, xvar, xedges):
-    hist = np.histogram(xvar, bins=xedges)
-    return Sample1D(title, hist[1], hist[0], 'e-theta')
+def bin_sample1D(title, xvar, analysis_type):
+    """Bins a toy in 1D histogram
+
+    Parameters
+    ----------
+    title : string
+        The title of the sample
+    xvar : numpy.array
+         The array of values of the observable on the x axis
+    analysis_type : 
+        Binning type for this sample
+    Returns
+    ------
+    Sample1D
+        The object of Sample1D class binning xvar array
+    """
+    
+    hist = np.histogram(xvar, bins=analysis_type_xedges[analysis_type])
+    return Sample1D(title, hist[1], hist[0], analysis_type)
+
+def bin_sample2D(title, xvar, yvar, analysis_type):
+    """Bins a toy in 2D histogram
+
+    Parameters
+    ----------
+    title : string
+        The title of the sample
+    xvar : numpy.array
+         The array of values of the observable on the x axis
+    yvar : numpy.array
+         The array of values of the observable on the y axis
+    analysis_type : 
+        Binning type for this sample
+    Returns
+    ------
+    Sample2D
+        The object of Sample2D class binning (xvar, yvar) array
+    """
+    
+    hist = np.histogram2d(xvar, yvar, bins=[analysis_type_xedges[analysis_type], analysis_type_yedges[analysis_type]])
+    return Sample2D(title, hist[1], hist[2], hist[0], analysis_type)
+
 
 def get_dchi2(toy_obs, toy_exp, perbin=False):
     zero_mask = (toy_obs.z == 0)

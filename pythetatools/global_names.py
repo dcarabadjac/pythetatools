@@ -3,13 +3,22 @@ import seaborn as sns
 
 tag = "T2K preliminary 2023"
 
-erec_binning_nominal = np.arange(0, 3.05, 0.05)
+erec_egdes = [0.05*i for i in range(61)] + [3.25, 3.50, 3.75, 4.00, 4.50, 5.00, 5.50, 6.00, 7.00, 8.00, 9.00, 10.00, 30.00]
+p_edges =  np.arange(0, 1300, 100)
+theta_numu_edges = [20*i for i in range(6)] + [180]
+theta_nue_edges = [10*i for i in range(15)] + [180]
+
+
+analysis_type_to_dim = {'Erec':'1D', 'e-theta':'2D', 'PTheta':'2D'}
+analysis_type_xedges = {'Erec':erec_egdes, 'e-theta':erec_egdes, 'PTheta':p_edges }
+analysis_type_yedges = {'Erec':None, 'e-theta':theta_numu_edges, 'PTheta':theta_nue_edges }
+
 
 sample_to_nuflav = {'numu1R':'numu', 'nue1R':'nue', 'numubar1R':'numu', 'nuebar1R':'nue', 'numucc1pi':'numu', 'nue1RD':'nue'}
 sample_to_title = {'numu1R':r'$\nu_\mu$ 1R', 'nue1R':r'$\nu_e$ 1R', 'numubar1R':r'$\bar{\nu}_\mu$ 1R', 'nuebar1R':r'$\bar{\nu}_e$ 1R', 'numucc1pi':r'MR $\nu_\mu$CC$1\pi^{+}$', 'nue1RD':r'1R $\nu_e$CC$1\pi^{+}$'}
 
 binning_to_xlabel = {'Erec':'Energy [GeV]', 'e-theta':'Energy [GeV]', 'p-theta': 'Electron momentum [MeV]'}
-binning_to_xtickspos = {'Erec':np.arange(0, 3.5, 0.5), 'e-theta':np.arange(0, 3.5, 0.5), 'nue': np.arange(0, 1300, 200)}
+binning_to_xtickspos = {'Erec':np.arange(0, 3.5, 0.5), 'e-theta':np.arange(0, 3.5, 0.5), 'PTheta': np.arange(0, 1300, 200)}
 binning_to_xmax = {'Erec':3, 'e-theta':3, 'p-theta': 1300}
 
 binning_to_xvar = {'Erec':'Erec', 'e-theta':'Erec', 'PTheta': 'p'}
