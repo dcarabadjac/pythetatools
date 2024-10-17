@@ -12,7 +12,7 @@ binning_to_xlabel = {'Erec':'Energy [GeV]', 'e-theta':'Energy [GeV]', 'p-theta':
 binning_to_xtickspos = {'Erec':np.arange(0, 3.5, 0.5), 'e-theta':np.arange(0, 3.5, 0.5), 'nue': np.arange(0, 1300, 200)}
 binning_to_xmax = {'Erec':3, 'e-theta':3, 'p-theta': 1300}
 
-binning_to_xvar = {'Erec':'Erec', 'e-theta':'Erec', 'p-theta': 'p'}
+binning_to_xvar = {'Erec':'Erec', 'e-theta':'Erec', 'PTheta': 'p'}
 
 mo_to_label = {0: 'Normal Ordering', 1: 'Inverted Ordering'}
 osc_param_name = ["delta", "dm2", "sin223", "sin213"]

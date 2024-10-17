@@ -4,28 +4,106 @@ from .global_names import *
 import subprocess
 from array import array
 import ROOT
+import uproot
 
-def get_toy(filename):
+
+def get_samples_info(filename):
+    samples_dict = {}
+    
+    with uproot.open(filename) as file:
+        keys = file.keys() # Get list of all keys        
+        for key in keys:
+            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key): #select only rec distr
+                analysis_type_key = f"{key[1:-2]}_analysis_type" # Get the corresponding analysis type for this sample
+                analysis_type = file[analysis_type_key].all_members['fTitle']
+                samples_dict[key[1:-2]] = analysis_type
+    return samples_dict
+
+def load_hists(filename):
+    samples_dict = get_samples_info(filename)
     toy = ToyXp([])
-    file = ROOT.TFile(filename, "READ")
     
-    keys = file.GetListOfKeys()
+    with uproot.open(filename) as file:
+        for sample_title, analysis_type in samples_dict.items():
+            hist = file[f'h{sample_title}']
+            xedges = hist.axis(0).edges()
+            z = hist.values()
+            if analysis_type =='e-theta' or analysis_type =='PTheta':
+                yedges = hist.axis(1).edges()
+                toy.append_sample(Sample2D(sample_title, xedges, yedges, z, analysis_type))    
+            else:
+                toy.append_sample(Sample1D(sample_title, xedges, z, analysis_type))  
+        
+    return toy
+
+def load_tree(filename, sample_title, analysis_type, itoy):
+
+    with uproot.open(filename) as file:
+        input_tree = file.get("ToyXp")
+        
+        if input_tree is None:
+            print(f"'ToyXp' tree not found in file {filename}")
+            return None
+
+        if analysis_type =='e-theta' or analysis_type =='PTheta':
+            xvar_branch_name = f"{binning_to_xvar[analysis_type]}_{sample_title}"
+            t_branch_name = f"t_{sample_title}"
+            data = input_tree.arrays([xvar_branch_name, t_branch_name], entry_start=itoy, entry_stop=itoy + 1)
+            xvar = data[xvar_branch_name][0]  
+            theta = data[t_branch_name][0]
+            return (np.array(xvar), np.array(theta))
+
+        xvar_branch_name = f"{binning_to_xvar[analysis_type]}_{sample_title}"
+        data = input_tree.arrays([xvar_branch_name], entry_start=itoy, entry_stop=itoy + 1)
+        xvar = data[xvar_branch_name][0]            
+        return (np.array(xvar), )
+
+def load_toys(filename, itoy):
+    samples_dict = get_samples_info(filename)
+    toy = ToyXp([])
+    with uproot.open(filename) as file:
+        for sample_title, analysis_type in samples_dict.items():
+            sample = bin_sample1D(sample_title, load_tree(filename, sample_title, analysis_type, itoy)[0], erec_binning_nominal)
+            toy.append_sample(sample)
+    return toy
+
+def load(filename, type, itoy=None):
+    """Loads the ToyXp root file
+
+    Parameters
+    ----------
+    filename : string
+        The filename of ToyXP root file
+    type : string
+        'asimov' - This option allows to load the histograms for each sample from the file
+        'toy' - This option allows to load the tree for each sample from the file (the trees will be binned in the histograms)
+    itoy : 
+        The index of toy to be loaded. It is relevant only for type='toy'
+    Returns
+    ------
+    ToyXp
+        The object of ToyXp class which stores either asimov data set and a toy data set
+
+    Examples
+    --------
+    BlaBla
     
-    for key in keys:
-        obj = key.ReadObj()
-        if isinstance(obj, ROOT.TH2D):  
-            xedges, yedges, z = get_hist2D(filename, obj.GetName())
-            toy.append_sample(Sample2D(obj.GetName()[1:], xedges, yedges, z, file.Get(f"{obj.GetName()[1:]}_analysis_type").GetTitle()))
-    for key in keys:  
-        obj = key.ReadObj()
-        if isinstance(obj, ROOT.TH1D) and (not (obj.GetName()[1:] in toy.get_titles())):
-            xedges, z = get_hist1D(filename, obj.GetName())
-            toy.append_sample(Sample1D(obj.GetName()[1:], xedges, z, file.Get(f"{obj.GetName()[1:]}_analysis_type").GetTitle()))
+    >>> print([i for i in example_generator(4)])
+    [0, 1, 2, 3]
+
+    """
+    
+    toy = ToyXp([]) #
+    if type=='asimov':
+        toy = load_hists(filename)
+    elif type=='toy':
+        toy = load_toys(filename, itoy)
+
     return toy
 
 def bin_sample1D(title, xvar, xedges):
     hist = np.histogram(xvar, bins=xedges)
-    return Sample1D(title, hist[1], hist[0])
+    return Sample1D(title, hist[1], hist[0], 'e-theta')
 
 def get_dchi2(toy_obs, toy_exp, perbin=False):
     zero_mask = (toy_obs.z == 0)
@@ -38,10 +116,10 @@ def get_dchi2(toy_obs, toy_exp, perbin=False):
         result = np.sum(result)
     return result
 
-def download_toyxp(path):
+def download_toyxp(inputpath, outputpath):
 
     scp_command = f"scp dcarabad@cca.in2p3.fr:" \
-                  f"{path} /Users/denis.carabadjac/Python/analysistools/inputs/ToyXp/"
+                  f"{path} /Users/denis.carabadjac/Python/pythetatools/inputs/ToyXp/"
     subprocess.run(scp_command, shell=True)
 
 def get_tree(filename, sample_title, ientry, binning):
