@@ -158,9 +158,14 @@ class Sample1D(Sample):
         self.__xedges = new_xedges
         
     def plot(self, ax, wtag=False, **kwargs):
+        kwargs2 = dict(kwargs)
+        kwargs2.pop('label', None)
         xcenters = (self.xedges[1:] + self.xedges[:-1])/2
         widths = (self.xedges[1:] - self.xedges[:-1])
-        ax.bar(xcenters, self.z, width=widths, zorder=0, **kwargs)
+        plt.step(self.xedges[:-1], self.z, where='post',  **kwargs)
+        plt.step([self.xedges[-2], self.xedges[-1]], [self.z[-1], 0], where='post', **kwargs2)
+        #plt.plot([self.xedges[-1]]*2 , [0, self.z[-1]], **kwargs)
+        #ax.bar(xcenters, self.z, width=widths, zorder=0, **kwargs) problematic as I cannot remove filling
         ax.set_title(sample_to_title[self.title], loc='left')
         if wtag:
             ax.set_title(tag, loc='right')

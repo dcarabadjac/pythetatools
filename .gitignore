@@ -3,11 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+osc_prob
 inputs
 outputs
 Notebooks
 .DS_store
-analysistools/.DS_Store
+pythetatools/.DS_Store
 
 # C extensions
 *.so

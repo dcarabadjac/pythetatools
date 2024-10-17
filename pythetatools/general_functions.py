@@ -2,7 +2,23 @@ from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 import numpy as np
 import matplotlib.transforms as transforms
 import ROOT
+import subprocess
 
+
+def download_file(inputpath, outputdir, login, host='cca.in2p3.fr'):
+    r"""Downloads a file from a remote SSH
+
+    Parameters
+    ----------
+    inputpath: the path on the remote SSH to the input file
+    outputdir: output directory for downloaded file
+    login: user login on the remote SSH where the file is stored
+    host: name of SSH
+    
+    """
+    scp_command = f"scp {login}@{host}:/{inputpath} {outputdir}"
+    # Execute the SCP command using subprocess
+    subprocess.run(scp_command, shell=True)
 
 
 def find_roots(x, y, c):

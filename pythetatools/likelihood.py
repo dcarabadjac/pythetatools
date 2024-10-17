@@ -3,22 +3,10 @@ import ROOT
 import numpy as np
 from .global_names import *
 from .general_functions import show_minor_ticks
-import subprocess
 import sys
 
 
-#Downloads already merged (by throws) margtemplate file
-def download_margtemplates(dirname, statonly=False):
-    if not statonly:
-        scp_command = f"scp dcarabad@cca.in2p3.fr:" \
-                  f"/sps/t2k/dcarabad/Develop/OA2024/P-theta/inputs/outputs/{dirname}/merged.root Root_files/{dirname}_merged.root"
-    else:
-        scp_command = f"scp dcarabad@cca.in2p3.fr:" \
-                  f"/sps/t2k/dcarabad/Develop/OA2024/P-theta/inputs/outputs/{dirname}/margtemplates_delta_100k_b0000_t000000.root Root_files/{dirname}_merged.root"
-    # Execute the SCP command using subprocess
-    subprocess.run(scp_command, shell=True)
-
-def read_asimov_fit_1D(filename, mo='both'):
+def read_margtemplates_1D(filename, mo='both'):
     # Open the ROOT file
     file = ROOT.TFile(filename, "READ")
     if file.IsZombie():
@@ -54,8 +42,7 @@ def read_asimov_fit_1D(filename, mo='both'):
             branch_type_code = branch.GetLeaf(branch_name).GetTypeName()
         elif branch_name=='mh':
             ndiscrparams = 1
-            print("Grid for mh found")
-            
+            print("Grid for mh found")          
         else:
             continue
         
@@ -124,16 +111,28 @@ class Dchi2:
         ax.set_ylim(0)
         ax.legend(edgecolor='white')
 
-    def find_confidence_level(self, nsigma):
-        roots = []   
+    def find_CI(self, nsigma):
+        edges_left = []   
+        edges_right = []
         c = np.sqrt(nsigma)
-    
+
+        #Treat the case if margin points in inside C.I.
+        if self.dchi2[0] <= c:
+            edges_left.append(self.grid[0])
+        if self.dchi2[-1] <= c:
+            edges_right.append(self.grid[-1])
+
+        #Find all the margins of C.I.
         for i in range(len(self.grid) - 1):
             y0, y1 = self.dchi2[i], self.dchi2[i + 1]
-            
-            if (y0 - c) * (y1 - c) < 0:
-                x0, x1 = x[i], x[i + 1]
-                root = x0 + (x1 - x0) * (c - y0) / (y1 - y0)
-                roots.append(root)    
-        return roots
+            if (y0 - c)>=0 and (y1 - c)<=0:
+                x0, x1 = self.grid[i], self.grid[i + 1]
+                edge_left = x0 + (x1 - x0) * (c - y0) / (y1 - y0)
+                edges_left.append(edge_left) 
+            if (y0 - c)<=0 and (y1 - c)>=0:
+                x0, x1 = self.grid[i], self.grid[i + 1]
+                edge_right = x0 + (x1 - x0) * (c - y0) / (y1 - y0)
+                edges_right.append(edge_right) 
+                
+        return edges_left, edges_right
 
