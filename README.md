@@ -1,5 +1,5 @@
-# analysistools
-The package to perform analysis of the results after the fit of P-theta framework
+# pythetatools
+The package providing post-fit analysis and drawing tools for P-theta analysis outputs
 
 To install the package run:
-pip install -e "/Users/denis.carabadjac/Python/analysistools/"
+pip install -e "/path/pythetatools/"
