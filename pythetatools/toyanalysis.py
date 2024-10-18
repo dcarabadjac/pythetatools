@@ -3,8 +3,21 @@ from matplotlib import pyplot as plt
 from .global_names import *
 import subprocess
 from array import array
-#import ROOT
+import os
 import uproot
+from .general_functions import download, plot_histogram
+    
+
+def download_toyxp(input_path, login=my_login, domain=my_domain):
+    """Dowloads the PTGenerateXp output root file 
+    
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
+    """
+    download(input_path, login=login, domain=domain, destination=os.path.join(inputs_dir, 'ToyXp'))
+    
 
 def get_samples_info(filename):
     """Gets information of the samples (the titles and analysis-type's) stored in PTGenerateXp output root file 
@@ -53,9 +66,9 @@ def load_hists(filename):
             z = hist.values()
             if analysis_type =='e-theta' or analysis_type =='PTheta':
                 yedges = hist.axis(1).edges()
-                toy.append_sample(Sample2D(sample_title, xedges, yedges, z, analysis_type))    
+                toy.append_sample(Sample(sample_title, [xedges, yedges], z, analysis_type))    
             else:
-                toy.append_sample(Sample1D(sample_title, xedges, z, analysis_type))  
+                toy.append_sample(Sample(sample_title, [xedges], z, analysis_type))  
         
     return toy
 
@@ -96,7 +109,7 @@ def load_tree(filename, sample_title, analysis_type, itoy):
         xvar = data[xvar_branch_name][0]            
         return (np.array(xvar), )
 
-def load_toys(filename, itoy):
+def load_toy(filename, itoy):
     """Loads and bins a toy from PTGenerateXp output root file 
 
     Parameters
@@ -151,7 +164,7 @@ def load(filename, type, itoy=None):
     if type=='asimov':
         toy = load_hists(filename)
     elif type=='toy':
-        toy = load_toys(filename, itoy)
+        toy = load_toy(filename, itoy)
 
     return toy
 
@@ -173,7 +186,7 @@ def bin_sample1D(title, xvar, analysis_type):
     """
     
     hist = np.histogram(xvar, bins=analysis_type_xedges[analysis_type])
-    return Sample1D(title, hist[1], hist[0], analysis_type)
+    return Sample(title, [hist[1]], hist[0], analysis_type)
 
 def bin_sample2D(title, xvar, yvar, analysis_type):
     """Bins a toy in 2D histogram
@@ -195,223 +208,195 @@ def bin_sample2D(title, xvar, yvar, analysis_type):
     """
     
     hist = np.histogram2d(xvar, yvar, bins=[analysis_type_xedges[analysis_type], analysis_type_yedges[analysis_type]])
-    return Sample2D(title, hist[1], hist[2], hist[0], analysis_type)
+    return Sample(title, [hist[1], hist[2]], hist[0], analysis_type)
 
 
-def get_dchi2(toy_obs, toy_exp, perbin=False):
-    zero_mask = (toy_obs.z == 0)
-    result = np.zeros_like(toy_obs.z, dtype=float)
+def calculate_dchi2(sample_obs, sample_exp, perbin=False):
+    """Calculates a -2deltalnL for given observed and expected samples distributions per bin of the observables or as sum over all bins
+
+    Parameters
+    ----------
+    sample_obs : Sample1D or Sample2D
+        Contains observed events distribution 
+    sample_exp : Sample1D or Sample2D
+        Contains expected events distribution 
+    perbin : bool
+        True - calculate -2deltalnL for each bin separetely
+        False - calculate total -2deltalnL 
+    Returns
+    ------
+    Float or numpy.array
+        Value/values of -2deltalnL
+    """
+    zero_mask = (sample_obs.z == 0)
+    result = np.zeros_like(sample_obs.z, dtype=float)
     non_zero_mask = ~zero_mask
-    result[non_zero_mask] = toy_exp.z[non_zero_mask]-toy_obs.z[non_zero_mask] - toy_obs.z[non_zero_mask]* \
-                                np.log(toy_exp.z[non_zero_mask]/toy_obs.z[non_zero_mask]) 
-    result[zero_mask] = toy_exp.z[zero_mask]
+    result[non_zero_mask] = sample_exp.z[non_zero_mask]-sample_obs.z[non_zero_mask] - sample_obs.z[non_zero_mask]* \
+                                np.log(sample_exp.z[non_zero_mask]/sample_obs.z[non_zero_mask]) 
+    result[zero_mask] = sample_exp.z[zero_mask]
     if not perbin:
         result = np.sum(result)
     return result
 
-def download_toyxp(inputpath, outputpath):
-
-    scp_command = f"scp dcarabad@cca.in2p3.fr:" \
-                  f"{path} /Users/denis.carabadjac/Python/pythetatools/inputs/ToyXp/"
-    subprocess.run(scp_command, shell=True)
-
-def get_tree(filename, sample_title, ientry, binning):
-
-    file = ROOT.TFile(filename, "READ")
-    
-    if file.IsZombie():
-        print(f"Error opening file {filename}")
-        return None
-
-    input_tree = file.Get("ToyXp")
-    if not input_tree:
-        print(f"'ToyXp' tree not found in file {filename}")
-        return None
-    xvar_branch =  ROOT.std.vector('double')()
-    t_branch =  ROOT.std.vector('double')()
-
-    input_tree.SetBranchAddress(f"{binning_to_xvar[binning]}_{sample_title}", xvar_branch)
-    input_tree.SetBranchAddress(f"t_{sample_title}", t_branch)
-
-    nEntries = input_tree.GetEntries()
-  
-    input_tree.GetEntry(ientry)
-    xvar = xvar_branch
-    theta = t_branch
-    return np.array(xvar), np.array(theta)
-
-def get_hist2D(filename, histname):
-    # Open the files
-    file = ROOT.TFile(filename, "READ")
-    
-    if not file.IsOpen():
-        print("Error opening one or more files.")
-        exit(1)
-    
-    # Read TH2D histograms from the second file
-    th2d = file.Get(histname)
-    
-    if not th2d:
-        print("Error reading one or more histograms.")
-        exit(2)
-
-    # Convert TH2D content to NumPy arrays
-    bin_edges_th2d_x = np.array([th2d.GetXaxis().GetBinLowEdge(i) for i in range(1, th2d.GetNbinsX() + 2)])
-    bin_edges_th2d_y = np.array([th2d.GetYaxis().GetBinLowEdge(i) for i in range(1, th2d.GetNbinsY() + 2)])
-    hist_content_th2d = np.array([[th2d.GetBinContent(i, j) for j in range(1, th2d.GetNbinsY() + 1) ] for i in range(1, th2d.GetNbinsX() + 1)])
-
-    # Close the files
-    file.Close()
-    return bin_edges_th2d_x, bin_edges_th2d_y, hist_content_th2d
-
-def get_hist1D(filename, histname):
-    # Open the files
-    file = ROOT.TFile(filename, "READ")
-    
-    if not file.IsOpen():
-        print("Error opening one or more files.")
-        exit(1)
-    
-    # Read TH2D histograms from the second file
-    th1d = file.Get(histname)
-    
-    if not th1d:
-        print("Error reading one or more histograms.")
-        exit(2)
-
-    # Convert TH2D content to NumPy arrays
-    bin_edges_th1d_x = np.array([th1d.GetXaxis().GetBinLowEdge(i) for i in range(1, th1d.GetNbinsX() + 2)])
-    hist_content_th1d = np.array([th1d.GetBinContent(i)  for i in range(1, th1d.GetNbinsX() + 1)])
-
-    # Close the files
-    file.Close()
-    return bin_edges_th1d_x, hist_content_th1d
 
 
 class Sample:
-    def __init__(self, title, z, binning):
-        z = np.array(z)
-        self.__z = z
+    def __init__(self, title, bin_edges, z, analysis_type):
+        """
+        Initializes a unified Sample class that can handle both 1D and 2D histograms.
+
+        Parameters:
+        ----------
+        title : string
+            Title of the sample
+        bin_edges: List
+            Contains bin edges, e.g., [xedges] for 1D or [xedges, yedges] for 2D
+        z: numpy.array
+            Contains histogram values, 1D or 2D depending on the number of dimensions
+        analysis_type : string
+            The type of the binning
+        """
         self.__title = title
-        self.__binning = binning
-        self.__nbins = self.z.size
-        self.__shape = self.z.shape
-    def __str__(self):
-        return f"Sample:{self.title}; shape:{self.shape}; Total number of events:{self.nevents()}"
-    def nevents(self):
-        return np.sum(self.z)
-    @property
-    def z(self):
-        return self.__z
-    @property
-    def nbins(self):
-        return self.__nbins
-    @property
-    def shape(self):
-        return self.__shape
-    @property
-    def binning(self):
-        return self.__binning
+        self.__bin_edges = [np.array(edges) for edges in bin_edges]  # list of edge arrays
+        self.__z = np.array(z)
+        self.__analysis_type = analysis_type
+        self.__ndim = len(self.__bin_edges)  # Number of dimensions
+
     @property
     def title(self):
         return self.__title
-    def set_z(self, new_z):
-        self.__z = new_z
 
-class Sample1D(Sample):
-    def __init__(self, title, xedges, z, binning):
-        super().__init__(title, z, binning)
-        self.__xedges = np.array(xedges)
     @property
-    def xedges(self):
-        return self.__xedges
-    def set_xedges(self, new_xedges):
-        self.__xedges = new_xedges
-        
-    def plot(self, ax, wtag=False, **kwargs):
-        kwargs2 = dict(kwargs)
-        kwargs2.pop('label', None)
-        xcenters = (self.xedges[1:] + self.xedges[:-1])/2
-        widths = (self.xedges[1:] - self.xedges[:-1])
-        plt.step(self.xedges[:-1], self.z, where='post',  **kwargs)
-        plt.step([self.xedges[-2], self.xedges[-1]], [self.z[-1], 0], where='post', **kwargs2)
-        #plt.plot([self.xedges[-1]]*2 , [0, self.z[-1]], **kwargs)
-        #ax.bar(xcenters, self.z, width=widths, zorder=0, **kwargs) problematic as I cannot remove filling
+    def bin_edges(self):
+        return self.__bin_edges
+
+    @property
+    def z(self):
+        return self.__z
+
+    @property
+    def analysis_type(self):
+        return self.__analysis_type
+
+    @property
+    def ndim(self):
+        return self.__ndim
+
+    def nevents(self):
+        return np.sum(self.__z)
+
+    def __str__(self):
+        return f"Sample: {self.title}; Dimension: {self.ndim}; Shape: {self.z.shape} Total events: {self.nevents()}"
+
+    def plot(self, ax, wtag, **kwargs):
+        if self.ndim == 1:
+            self._plot_1d(ax, wtag, **kwargs)
+        elif self.ndim == 2:
+            self._plot_2d(ax, wtag, **kwargs)
+        else:
+            raise ValueError("Plotting is only supported for 1D and 2D samples.")     
+
+    def rebin(self, new_bin_edges):
+        if self.ndim == 1:
+            return self._rebin_1d(new_bin_edges)
+        elif self.ndim == 2:
+            return self._rebin_2d(new_bin_edges)
+        else:
+            raise ValueError("Rebinning is only supported for 1D and 2D samples.")
+
+    def slice(self, *args):
+
+        if self.ndim == 1:
+            xmin, xmax = args
+            if not(xmin in self.bin_edges[0] and xmax in self.bin_edges[0]):
+                raise ValueError("The slice edges should be contained in the binning edges")
+            start = np.where(self.bin_edges[0] == xmin)[0][0]
+            stop = np.where(self.bin_edges[0] == xmax)[0][0]
+            new_xedges = self.bin_edges[0][start:stop + 1]
+            new_z = self.z[start:stop]
+            return Sample(title=self.title, bin_edges=[new_xedges], z=new_z, analysis_type=self.analysis_type)
+
+        elif self.ndim == 2:
+            xmin, xmax, ymin, ymax = args
+            if not(xmin in self.bin_edges[0] and xmax in self.bin_edges[0] and ymin in self.bin_edges[1] and ymax in self.bin_edges[1]):
+                raise ValueError("The slice edges should be contained in the binning edges")
+            start_x = np.where(self.bin_edges[0] == xmin)[0][0]
+            stop_x = np.where(self.bin_edges[0] == xmax)[0][0]
+            start_y = np.where(self.bin_edges[1] == ymin)[0][0]
+            stop_y = np.where(self.bin_edges[1] == ymax)[0][0]
+            new_xedges = self.bin_edges[0][start_x:stop_x + 1]
+            new_yedges = self.bin_edges[1][start_y:stop_y + 1]
+            new_z = self.z[start_x:stop_x, start_y:stop_y]
+            return Sample(title=self.title, bin_edges=[new_xedges, new_yedges], z=new_z, analysis_type=self.analysis_type)
+
+    def _plot_1d(self, ax, wtag, **kwargs):
+        plot_histogram(ax, self.bin_edges[0], self.z, **kwargs)
         ax.set_title(sample_to_title[self.title], loc='left')
+        _=ax.set_xticks(binning_to_xtickspos[self.analysis_type])
+        ax.set_xlim(0., binning_to_xmax[self.analysis_type])
+        ax.set_ylim(0.)
+        ax.set_xlabel(binning_to_xlabel[self.analysis_type])
+        ax.set_ylabel('Number of events')
         if wtag:
             ax.set_title(tag, loc='right')
-        _=ax.set_xticks(binning_to_xtickspos[self.binning])
-        ax.set_xlim(0.001, binning_to_xmax[self.binning])
-        ax.set_xlabel(binning_to_xlabel[self.binning])
-        ax.set_ylabel('Number of events')
-        
-    def rebin(self, new_xedges):
-        if all(new_xedge in self.xedges for new_xedge in new_xedges):
-            i = 0
-            new_z = np.zeros(new_xedges.shape[0]-1)
-            for k in range(self.shape[0]):
-                if self.xedges[k] >= new_xedges[i+1]:
-                    i += 1
-                new_z[i] += self.z[k]
-            return Sample1D(self.title, new_xedges, new_z)
-        else:
-            raise ValueError("New edges should be contained fully in old edges")
 
-    def slice(self, xmin, xmax):
-        start = np.where(self.xedges == xmin)[0][0]
-        stop = np.where(self.xedges == xmax)[0][0]
-        new_xedges = self.xedges[start:stop+1]
-        new_z = self.z[start:stop]
-        return Sample1D(self.title, new_xedges, new_z)
-
-    
-class Sample2D(Sample):
-    def __init__(self, title, xedges, yedges, z, binning):
-        super().__init__(title, z, binning)
-        self.__xedges = xedges
-        self.__yedges = yedges
-    @property
-    def xedges(self):
-        return self.__xedges
-    def set_xedges(self, new_xedges):
-        self.__xedges = new_xedges
-    @property
-    def yedges(self):
-        return self.__yedges
-    def set_yedges(self, new_yedges):
-        self.__yedges = new_yedges
-        
-    def plot(self, ax, wtag=False, **kwargs):
-        mesh = ax.pcolormesh(self.xedges, self.yedges, self.z.transpose(), zorder=0, cmap=kwargs.pop('cmap', rev_afmhot),  **kwargs)
+    def _plot_2d(self, ax, wtag, **kwargs):
+        mesh = ax.pcolormesh(self.bin_edges[0], self.bin_edges[1], self.z.transpose(), zorder=0, cmap=kwargs.pop('cmap', rev_afmhot),  **kwargs)
         cbar = plt.colorbar(mesh, ax=ax)        
         ax.set_title(sample_to_title[self.title], loc='left', fontsize=20)
+        _=ax.set_xticks(binning_to_xtickspos[self.analysis_type])
+        _=ax.set_yticks([30*i for i in range(7)])                          
+        ax.set_xlim(0.001, binning_to_xmax[self.analysis_type])
+        ax.set_ylim(0, 180)
+        ax.set_xlabel(binning_to_xlabel[self.analysis_type])
+        ax.set_ylabel("Angle [degrees]")
         if wtag:
             ax.set_title(tag, loc='right', fontsize=20)
-        _=ax.set_xticks(binning_to_xtickspos[self.binning])
-        _=ax.set_yticks([30*i for i in range(7)]) #Make ticks step 30 degrees
-        ax.set_xlim(0.001, binning_to_xmax[self.binning])
-        ax.set_ylim(0, 180)
-        ax.set_xlabel(binning_to_xlabel[self.binning])
-        ax.set_ylabel("Angle [degrees]")
+    
+    def _rebin_1d(self, new_bin_edges):
+        if len(new_bin_edges) != 1:
+            raise ValueError(f"The dimension of new edges ({len(new_bin_edges)}) should be equal to 1 as it is 1D sample")
+            
+        new_xedges = new_bin_edges[0]
+        old_xedges = self.bin_edges[0]
         
-    def rebin(self, new_xedges, new_yedges):
-        if all(new_xedge in self.xedges for new_xedge in new_xedges) and all(new_yedge in self.yedges for new_yedge in new_yedges):
+        if all(new_xedge in old_xedges for new_xedge in new_xedges):
+            i = 0
+            new_z = np.zeros(new_xedges.shape[0]-1)
+            for k in range(self.z.shape[0]):
+                if old_xedges[k] >= new_xedges[i+1]:
+                    i += 1
+                new_z[i] += self.z[k]
+            return Sample(self.title, [new_xedges], new_z, self.analysis_type)
+        else:
+            raise ValueError("New edges should be fully contained in old edges")
+
+
+    def _rebin_2d(self, new_bin_edges):
+        if len(new_bin_edges) != 2:
+            raise ValueError(f"The dimension of new edges ({len(new_bin_edges)}) should be equal to 2 as it is 2D sample")
+        new_xedges = new_bin_edges[0]
+        new_yedges = new_bin_edges[1]
+        old_xedges = self.bin_edges[0]
+        old_yedges = self.bin_edges[1]
+        
+        if all(new_xedge in old_xedges for new_xedge in new_xedges) and all(new_yedge in old_yedges for new_yedge in new_yedges):
             new_z = np.zeros((new_xedges.shape[0]-1, new_yedges.shape[0]-1))
             j = 0
-            for m in range(self.shape[1]):
-                if self.yedges[m] >= new_yedges[j+1]:
+            for m in range(self.z.shape[1]):
+                if old_yedges[m] >= new_yedges[j+1]:
                     j+=1
                 i = 0
-                for k in range(self.shape[0]):
-                    if self.xedges[k] >= new_xedges[i+1]:
+                for k in range(self.z.shape[0]):
+                    if old_xedges[k] >= new_xedges[i+1]:
                         i += 1
                     new_z[i][j] += self.z[k][m]
             if new_yedges.shape[0] > 2 and new_xedges.shape[0] > 2:
-                return Sample2D(self.title, new_xedges, new_yedges, new_z)
-            if new_xedges.shape[0] > 2:
-                return Sample1D(self.title, new_xedges, new_z.transpose()[0])
-            if new_yedges.shape[0] > 2:
-                return Sample1D(self.title, new_yedges, new_z[0])
+                return Sample(self.title, [new_xedges, new_yedges], new_z, self.analysis_type)
+            if new_yedges.shape[0] == 2:
+                return Sample(self.title, [new_xedges], new_z.transpose()[0], 'Erec' if self.analysis_type=='e-theta' else 'P')
+            if new_xedges.shape[0] == 2:
+                return Sample(self.title, [new_yedges], new_z[0], 'Theta')
             
         else:
             raise ValueError("New edges should be contained fully in old edges")

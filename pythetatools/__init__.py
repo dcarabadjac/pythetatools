@@ -1,2 +1,2 @@
-from .toyanalysis import ToyXp, Sample1D, Sample2D, bin_sample1D
+from .toyanalysis import ToyXp, Sample
 from .likelihood import *

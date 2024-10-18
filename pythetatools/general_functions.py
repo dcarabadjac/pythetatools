@@ -1,24 +1,43 @@
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 import numpy as np
 import matplotlib.transforms as transforms
+import matplotlib.pyplot as plt
 import ROOT
 import subprocess
 
 
-def download_file(inputpath, outputdir, login, host='cca.in2p3.fr'):
-    r"""Downloads a file from a remote SSH
-
+def download(input_path, login, domain, destination):
+    """Dowloads a file or directory from computing center's server
+    
     Parameters
     ----------
-    inputpath: the path on the remote SSH to the input file
-    outputdir: output directory for downloaded file
-    login: user login on the remote SSH where the file is stored
-    host: name of SSH
-    
+    input_path : string
+        Path on the server to the inputs
+    login : string
+        Login of the account where the inputs are stored
+    domain : string
+        Domain of the computing center
+    destination : string
+        Output directory for the downloaded inputs
     """
-    scp_command = f"scp {login}@{host}:/{inputpath} {outputdir}"
-    # Execute the SCP command using subprocess
+    if os.path.isfile(input_path):
+        scp_command = f"scp {login}@{domain}:" \
+                      f"{input_path} {destination}"
+    elif os.path.isdir(input_path):
+         scp_command = f"scp -r {login}@{domain}:" \
+                      f"{input_path} {destination}"   
     subprocess.run(scp_command, shell=True)
+
+def plot_histogram(ax, xedges, z, **kwargs):
+
+    line_color = kwargs.get('color', plt.gca()._get_lines.get_next_color())
+    kwargs['color'] = line_color
+    kwargs2 = dict(kwargs)
+    kwargs2.pop('label', None)
+
+    ax.plot([xedges[0], xedges[0]], [0, z[0]], **kwargs2 )
+    ax.step(xedges[:-1], z, where='post',  **kwargs)
+    ax.step([xedges[-2], xedges[-1]], [z[-1], 0], where='post', **kwargs2) 
 
 
 def find_roots(x, y, c):
