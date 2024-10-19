@@ -29,15 +29,10 @@ def download(input_path, login, domain, destination):
     subprocess.run(scp_command, shell=True)
 
 def plot_histogram(ax, xedges, z, **kwargs):
-
-    line_color = kwargs.get('color', plt.gca()._get_lines.get_next_color())
-    kwargs['color'] = line_color
-    kwargs2 = dict(kwargs)
-    kwargs2.pop('label', None)
-
-    ax.plot([xedges[0], xedges[0]], [0, z[0]], **kwargs2 )
-    ax.step(xedges[:-1], z, where='post',  **kwargs)
-    ax.step([xedges[-2], xedges[-1]], [z[-1], 0], where='post', **kwargs2) 
+    x = np.append(xedges, xedges[-1:])
+    heights = np.insert(z, 0, 0)
+    heights = np.append(heights, [0])
+    ax.step(x, heights, **kwargs)
 
 
 def find_roots(x, y, c):

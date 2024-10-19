@@ -241,7 +241,7 @@ def calculate_dchi2(sample_obs, sample_exp, perbin=False):
 
 
 class Sample:
-     """
+    """
     Represents a histogram sample that can handle both 1D and 2D distributions.
     The class provides functionalities for slicing, rebinning, plotting, and 
     other operations on the histogram data.
@@ -276,7 +276,7 @@ class Sample:
     def __init__(self, title, bin_edges, z, analysis_type):
         """
         Initializes a Sample class that can handle both 1D and 2D histograms.
-
+    
         Parameters:
         ----------
         title : string
