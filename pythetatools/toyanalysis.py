@@ -241,9 +241,41 @@ def calculate_dchi2(sample_obs, sample_exp, perbin=False):
 
 
 class Sample:
+     """
+    Represents a histogram sample that can handle both 1D and 2D distributions.
+    The class provides functionalities for slicing, rebinning, plotting, and 
+    other operations on the histogram data.
+
+    Attributes
+    ----------
+    title : str
+        The title of the sample.
+    bin_edges : list of numpy.ndarray
+        A list containing arrays of bin edges. For a 1D histogram, it contains 
+        one array for the x-axis edges. For a 2D histogram, it contains two arrays 
+        for the x-axis and y-axis edges.
+    z : numpy.ndarray
+        The histogram values, stored in a 1D or 2D array depending on the number 
+        of dimensions.
+    analysis_type : str
+        The type of analysis or binning used (e.g., 'Erec', 'e-theta', or 'PTheta').
+    ndim : int
+        The number of dimensions of the histogram (1 for 1D, 2 for 2D).
+
+    Methods
+    -------
+    nevents():
+        Returns the total number of events in the histogram.
+    plot(ax, wtag, **kwargs):
+        Plots the histogram distribution on a given matplotlib axis.
+    rebin(new_bin_edges):
+        Rebins the histogram using the specified new bin edges.
+    slice(*args):
+        Returns a sliced portion of the histogram based on specified binning edges.
+    """
     def __init__(self, title, bin_edges, z, analysis_type):
         """
-        Initializes a unified Sample class that can handle both 1D and 2D histograms.
+        Initializes a Sample class that can handle both 1D and 2D histograms.
 
         Parameters:
         ----------
@@ -262,6 +294,7 @@ class Sample:
         self.__analysis_type = analysis_type
         self.__ndim = len(self.__bin_edges)  # Number of dimensions
 
+    #Set getters
     @property
     def title(self):
         return self.__title
@@ -289,6 +322,16 @@ class Sample:
         return f"Sample: {self.title}; Dimension: {self.ndim}; Shape: {self.z.shape} Total events: {self.nevents()}"
 
     def plot(self, ax, wtag, **kwargs):
+        """
+        Plots the distrubution of the Sample object.
+
+        Parameters:
+        ----------
+        ax : string
+            Title of the sample
+        wtag : bool
+            Set True (False) to (not) show the tag 
+        """
         if self.ndim == 1:
             self._plot_1d(ax, wtag, **kwargs)
         elif self.ndim == 2:
@@ -297,6 +340,35 @@ class Sample:
             raise ValueError("Plotting is only supported for 1D and 2D samples.")     
 
     def rebin(self, new_bin_edges):
+        """
+        Rebins the distribution of the `Sample` object using the specified 
+        new binning edges. Supports rebinning for both 1D and 2D distributions.
+    
+        Parameters
+        ----------
+        new_bin_edges : list of arrays
+            The new binning edges to use for rebinning the distribution. 
+            For a 1D distribution, provide a single array of bin edges. 
+            For a 2D distribution, provide a list containing two arrays: 
+            the bin edges along the x-axis and y-axis.
+    
+        Returns
+        -------
+        Sample
+            A new `Sample` object with the distribution rebinned according 
+            to the specified bin edges.
+    
+        Raises
+        ------
+        ValueError
+            If the distribution is not 1D or 2D, as rebinning is only 
+            supported for these cases.
+    
+        Notes
+        -----
+        - The new binning edges should fully encompass the original 
+          distribution's range for meaningful results.
+        """
         if self.ndim == 1:
             return self._rebin_1d(new_bin_edges)
         elif self.ndim == 2:
@@ -305,7 +377,39 @@ class Sample:
             raise ValueError("Rebinning is only supported for 1D and 2D samples.")
 
     def slice(self, *args):
-
+        """
+        Returns a sliced portion of the distribution for the `Sample` object, 
+        based on specified binning edges. The method supports slicing both 
+        one-dimensional and two-dimensional distributions.
+    
+        Parameters
+        ----------
+        *args : float
+            For 1D distributions, provide two arguments: `xmin` and `xmax`, 
+            representing the lower and upper edges of the slice, respectively.
+            For 2D distributions, provide four arguments: `xmin`, `xmax`, 
+            `ymin`, and `ymax`, representing the lower and upper edges 
+            of the slice in both dimensions.
+    
+        Returns
+        -------
+        Sample
+            A new `Sample` object representing the sliced portion of the 
+            original distribution, with updated binning edges and data.
+    
+        Raises
+        ------
+        ValueError
+            If the specified slice edges are not contained within the existing 
+            binning edges.
+    
+        Notes
+        -----
+        - The binning edges provided for slicing must align with the existing 
+          binning edges of the `Sample` object.
+        - In the 1D case, the slicing is performed along the x-axis.
+        - In the 2D case, the slicing is performed along both the x and y axes. 
+        """
         if self.ndim == 1:
             xmin, xmax = args
             if not(xmin in self.bin_edges[0] and xmax in self.bin_edges[0]):
@@ -402,28 +506,90 @@ class Sample:
             raise ValueError("New edges should be contained fully in old edges")
 
 class ToyXp:
-    def __init__(self, samples_list):
-        self.samples = samples_list
+    """
+    A class representing a collection of samples, which can be accessed,
+    modified, and managed collectively.
 
-    def get_titles(self):
-        titles = []
-        for sample in self.samples:
-            titles.append(sample.title)
-        return titles
-    
-    def get_sample(self, title):
-        for sample in self.samples:
-            if sample.title == title:
-                return sample
-        raise ValueError("Sample {title} not found in this toy")
+    Attributes
+    ----------
+    samples : list
+        A list of `Sample` objects representing the samples in the collection.
+
+    Methods
+    -------
+    get_titles():
+        Returns the titles of all samples in the collection.
+    get_sample(title):
+        Retrieves a sample from the collection by its title.
+    append_sample(sample):
+        Adds a new sample to the collection.
+    """
+
+    def __init__(self, samples_list):
+        """
+        Initializes the `ToyXp` object with a list of samples.
+
+        Parameters
+        ----------
+        samples_list : list
+            A list of `Sample` objects to initialize the collection.
+        """
+        self.samples = samples_list
 
     def __str__(self):
         result = f'{len(self.samples)} samples are included in this toy: \n'
         result += '\n'.join(str(sample) for sample in self.samples)
         return result
-        
+
+    def get_titles(self):
+        """
+        Returns the titles of all samples in the collection.
+
+        Returns
+        -------
+        list
+            A list of titles for all `Sample` objects in the collection.
+        """
+        titles = []
+        for sample in self.samples:
+            titles.append(sample.title)
+        return titles
+
+    def get_sample(self, title):
+        """
+        Retrieves a sample from the collection by its title.
+
+        Parameters
+        ----------
+        title : str
+            The title of the sample to retrieve.
+
+        Returns
+        -------
+        Sample
+            The `Sample` object with the specified title.
+
+        Raises
+        ------
+        ValueError
+            If no sample with the given title is found in the collection.
+        """
+        for sample in self.samples:
+            if sample.title == title:
+                return sample
+        raise ValueError(f"Sample {title} not found in this toy")
+
     def append_sample(self, sample):
+        """
+        Adds a new sample to the collection.
+
+        Parameters
+        ----------
+        sample : Sample
+            The `Sample` object to add to the collection.
+        """
         self.samples.append(sample)
+
 
             
             
