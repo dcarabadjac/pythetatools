@@ -5,7 +5,9 @@ import subprocess
 from array import array
 import os
 import uproot
-from .general_functions import download, plot_histogram
+from .file_manager import download
+from .base_visualisation import *
+
     
 
 def download_toyxp(input_path, login=my_login, domain=my_domain):

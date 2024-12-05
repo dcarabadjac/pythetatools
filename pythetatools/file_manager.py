@@ -84,7 +84,7 @@ def download(input_path, login, domain, destination, overwrite=False):
         print(f"Error during SCP transfer: {e}")
 
 
-def read_hist(filename, histname, dim):
+def read_histogram(filename, histname, dim):
     """Loads 1D or 2D histogram from the ROOT file."""
     
     with uproot.open(filename) as file:

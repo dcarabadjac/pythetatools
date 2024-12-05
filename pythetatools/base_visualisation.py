@@ -2,6 +2,8 @@ from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 import numpy as np
 import matplotlib.transforms as transforms
 import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 RED = "\033[31m"
 RESET = "\033[0m"
