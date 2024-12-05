@@ -20,7 +20,7 @@ def download_toyxp(input_path, login=my_login, domain=my_domain):
     
 
 def get_samples_info(filename):
-    """Gets information of the samples (the titles and analysis-type's) stored in PTGenerateXp output root file 
+    """Provides information of the samples (the titles and analysis-type's) stored in PTGenerateXp output root file 
     
     Parameters
     ----------
@@ -42,6 +42,8 @@ def get_samples_info(filename):
                 samples_dict[key[1:-2]] = analysis_type
     return samples_dict
 
+
+
 def load_hists(filename):
     """Loads asimovs from PTGenerateXp output root file 
 
@@ -57,7 +59,7 @@ def load_hists(filename):
     """
     
     samples_dict = get_samples_info(filename)
-    toy = ToyXp([])
+    toy = ToyXp()
     
     with uproot.open(filename) as file:
         for sample_title, analysis_type in samples_dict.items():
@@ -66,9 +68,9 @@ def load_hists(filename):
             z = hist.values()
             if analysis_type =='e-theta' or analysis_type =='PTheta':
                 yedges = hist.axis(1).edges()
-                toy.append_sample(Sample(sample_title, [xedges, yedges], z, analysis_type))    
+                toy.append_sample(Sample([xedges, yedges], z, sample_title, analysis_type))    
             else:
-                toy.append_sample(Sample(sample_title, [xedges], z, analysis_type))  
+                toy.append_sample(Sample([xedges], z, sample_title, analysis_type))  
         
     return toy
 
@@ -97,14 +99,14 @@ def load_tree(filename, sample_title, analysis_type, itoy):
             return None
 
         if analysis_type =='e-theta' or analysis_type =='PTheta':
-            xvar_branch_name = f"{binning_to_xvar[analysis_type]}_{sample_title}"
+            xvar_branch_name = f"{analysis_type_to_xvar[analysis_type]}_{sample_title}"
             t_branch_name = f"t_{sample_title}"
             data = input_tree.arrays([xvar_branch_name, t_branch_name], entry_start=itoy, entry_stop=itoy + 1)
             xvar = data[xvar_branch_name][0]  
             theta = data[t_branch_name][0]
             return (np.array(xvar), np.array(theta))
 
-        xvar_branch_name = f"{binning_to_xvar[analysis_type]}_{sample_title}"
+        xvar_branch_name = f"{analysis_type_to_xvar[analysis_type]}_{sample_title}"
         data = input_tree.arrays([xvar_branch_name], entry_start=itoy, entry_stop=itoy + 1)
         xvar = data[xvar_branch_name][0]            
         return (np.array(xvar), )
@@ -125,7 +127,7 @@ def load_toy(filename, itoy):
 
     """
     samples_dict = get_samples_info(filename)
-    toy = ToyXp([])
+    toy = ToyXp()
     with uproot.open(filename) as file:
         for sample_title, analysis_type in samples_dict.items():
             if analysis_type_to_dim[analysis_type] == '1D':
@@ -160,7 +162,7 @@ def load(filename, type, itoy=None):
 
     """
     
-    toy = ToyXp([]) #
+    toy = ToyXp() #
     if type=='asimov':
         toy = load_hists(filename)
     elif type=='toy':
@@ -273,7 +275,7 @@ class Sample:
     slice(*args):
         Returns a sliced portion of the histogram based on specified binning edges.
     """
-    def __init__(self, title, bin_edges, z, analysis_type):
+    def __init__(self, bin_edges, z, title=None, analysis_type=None):
         """
         Initializes a Sample class that can handle both 1D and 2D histograms.
     
@@ -283,16 +285,33 @@ class Sample:
             Title of the sample
         bin_edges: List
             Contains bin edges, e.g., [xedges] for 1D or [xedges, yedges] for 2D
-        z: numpy.array
+        z: array-like
             Contains histogram values, 1D or 2D depending on the number of dimensions
         analysis_type : string
             The type of the binning
         """
         self.__title = title
-        self.__bin_edges = [np.array(edges) for edges in bin_edges]  # list of edge arrays
+        self.__bin_edges = bin_edges
         self.__z = np.array(z)
         self.__analysis_type = analysis_type
-        self.__ndim = len(self.__bin_edges)  # Number of dimensions
+
+        if len(bin_edges) != np.ndim(z):
+            raise ValueError(
+                f"Dimension mismatch: bin_edges has {len(bin_edges)} dimensions, "
+                f"but z has {np.ndim(z)} dimensions."
+            )
+        expected_shape = tuple(len(edges) - 1 for edges in bin_edges)
+        bin_egdes_shape = tuple(len(edges) for edges in bin_edges)
+
+        if expected_shape != self.__z.shape:
+            raise ValueError(
+                f"Shape mismatch: bin_edges implies shape {bin_egdes_shape}, "
+                f"but z has shape {self.__z.shape}. Numer of bin edges = number of bins + 1"
+            )
+
+    
+    def __str__(self):
+        return f"Sample: {self.title}; Dimension: {self.ndim()}; Shape: {self.z.shape} Total events: {self.nevents()}"
 
     #Set getters
     @property
@@ -311,17 +330,14 @@ class Sample:
     def analysis_type(self):
         return self.__analysis_type
 
-    @property
     def ndim(self):
-        return self.__ndim
+        return len(self.__bin_edges)
 
     def nevents(self):
         return np.sum(self.__z)
 
-    def __str__(self):
-        return f"Sample: {self.title}; Dimension: {self.ndim}; Shape: {self.z.shape} Total events: {self.nevents()}"
 
-    def plot(self, ax, wtag, **kwargs):
+    def plot(self, ax, wtag=False, **kwargs):
         """
         Plots the distrubution of the Sample object.
 
@@ -332,9 +348,9 @@ class Sample:
         wtag : bool
             Set True (False) to (not) show the tag 
         """
-        if self.ndim == 1:
+        if self.ndim() == 1:
             self._plot_1d(ax, wtag, **kwargs)
-        elif self.ndim == 2:
+        elif self.ndim() == 2:
             self._plot_2d(ax, wtag, **kwargs)
         else:
             raise ValueError("Plotting is only supported for 1D and 2D samples.")     
@@ -369,9 +385,9 @@ class Sample:
         - The new binning edges should fully encompass the original 
           distribution's range for meaningful results.
         """
-        if self.ndim == 1:
+        if self.ndim() == 1:
             return self._rebin_1d(new_bin_edges)
-        elif self.ndim == 2:
+        elif self.ndim() == 2:
             return self._rebin_2d(new_bin_edges)
         else:
             raise ValueError("Rebinning is only supported for 1D and 2D samples.")
@@ -410,7 +426,7 @@ class Sample:
         - In the 1D case, the slicing is performed along the x-axis.
         - In the 2D case, the slicing is performed along both the x and y axes. 
         """
-        if self.ndim == 1:
+        if self.ndim() == 1:
             xmin, xmax = args
             if not(xmin in self.bin_edges[0] and xmax in self.bin_edges[0]):
                 raise ValueError("The slice edges should be contained in the binning edges")
@@ -420,7 +436,7 @@ class Sample:
             new_z = self.z[start:stop]
             return Sample(title=self.title, bin_edges=[new_xedges], z=new_z, analysis_type=self.analysis_type)
 
-        elif self.ndim == 2:
+        elif self.ndim() == 2:
             xmin, xmax, ymin, ymax = args
             if not(xmin in self.bin_edges[0] and xmax in self.bin_edges[0] and ymin in self.bin_edges[1] and ymax in self.bin_edges[1]):
                 raise ValueError("The slice edges should be contained in the binning edges")
@@ -433,26 +449,33 @@ class Sample:
             new_z = self.z[start_x:stop_x, start_y:stop_y]
             return Sample(title=self.title, bin_edges=[new_xedges, new_yedges], z=new_z, analysis_type=self.analysis_type)
 
-    def _plot_1d(self, ax, wtag, **kwargs):
+    def _plot_1d(self, ax, wtag=False, **kwargs):
         plot_histogram(ax, self.bin_edges[0], self.z, **kwargs)
-        ax.set_title(sample_to_title[self.title], loc='left')
-        _=ax.set_xticks(binning_to_xtickspos[self.analysis_type])
-        ax.set_xlim(0., binning_to_xmax[self.analysis_type])
-        ax.set_ylim(0.)
-        ax.set_xlabel(binning_to_xlabel[self.analysis_type])
-        ax.set_ylabel('Number of events')
+
+        if self.title is not None:
+            ax.set_title(sample_to_title[self.title], loc='left')
+        if self.analysis_type is not None:
+            _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
+            ax.set_xlim(0.001, analysis_type_to_xmax[self.analysis_type])
+            ax.set_xlabel(analysis_type_to_xlabel[self.analysis_type])
         if wtag:
             ax.set_title(tag, loc='right')
 
-    def _plot_2d(self, ax, wtag, **kwargs):
+        ax.set_ylim(0.)
+        ax.set_ylabel('Number of events')
+
+    def _plot_2d(self, ax, wtag=False, **kwargs):
         mesh = ax.pcolormesh(self.bin_edges[0], self.bin_edges[1], self.z.transpose(), zorder=0, cmap=kwargs.pop('cmap', rev_afmhot),  **kwargs)
-        cbar = plt.colorbar(mesh, ax=ax)        
-        ax.set_title(sample_to_title[self.title], loc='left', fontsize=20)
-        _=ax.set_xticks(binning_to_xtickspos[self.analysis_type])
+        cbar = plt.colorbar(mesh, ax=ax)    
+        if self.title is not None:
+            ax.set_title(sample_to_title[self.title], loc='left', fontsize=20)
+        if self.analysis_type is not None:
+            _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
+            ax.set_xlim(0.001, analysis_type_to_xmax[self.analysis_type])
+            ax.set_xlabel(analysis_type_to_xlabel[self.analysis_type])
+
         _=ax.set_yticks([30*i for i in range(7)])                          
-        ax.set_xlim(0.001, binning_to_xmax[self.analysis_type])
         ax.set_ylim(0, 180)
-        ax.set_xlabel(binning_to_xlabel[self.analysis_type])
         ax.set_ylabel("Angle [degrees]")
         if wtag:
             ax.set_title(tag, loc='right', fontsize=20)
@@ -471,7 +494,7 @@ class Sample:
                 if old_xedges[k] >= new_xedges[i+1]:
                     i += 1
                 new_z[i] += self.z[k]
-            return Sample(self.title, [new_xedges], new_z, self.analysis_type)
+            return Sample([new_xedges], new_z, self.title, self.analysis_type)
         else:
             raise ValueError("New edges should be fully contained in old edges")
 
@@ -495,13 +518,23 @@ class Sample:
                     if old_xedges[k] >= new_xedges[i+1]:
                         i += 1
                     new_z[i][j] += self.z[k][m]
+                    
             if new_yedges.shape[0] > 2 and new_xedges.shape[0] > 2:
-                return Sample(self.title, [new_xedges, new_yedges], new_z, self.analysis_type)
+                return Sample( [new_xedges, new_yedges], new_z, self.title, self.analysis_type)
             if new_yedges.shape[0] == 2:
-                return Sample(self.title, [new_xedges], new_z.transpose()[0], 'Erec' if self.analysis_type=='e-theta' else 'P')
+                if self.analysis_type=='e-theta':
+                    analysis_type = 'Erec'
+                elif self.analysis_type=='PTheta':
+                    analysis_type = 'P'
+                else:
+                    analysis_type = None
+                return Sample( [new_xedges], new_z.transpose()[0], self.title, analysis_type)
             if new_xedges.shape[0] == 2:
-                return Sample(self.title, [new_yedges], new_z[0], 'Theta')
-            
+                if self.analysis_type=='e-theta' or self.analysis_type=='PTheta':
+                    analysis_type = 'Theta'
+                else:
+                    analysis_type = None
+                return Sample( [new_yedges], new_z[0], self.title, analysis_type)       
         else:
             raise ValueError("New edges should be contained fully in old edges")
 
@@ -525,7 +558,7 @@ class ToyXp:
         Adds a new sample to the collection.
     """
 
-    def __init__(self, samples_list):
+    def __init__(self):
         """
         Initializes the `ToyXp` object with a list of samples.
 
@@ -534,7 +567,7 @@ class ToyXp:
         samples_list : list
             A list of `Sample` objects to initialize the collection.
         """
-        self.samples = samples_list
+        self.samples = []
 
     def __str__(self):
         result = f'{len(self.samples)} samples are included in this toy: \n'
@@ -589,6 +622,9 @@ class ToyXp:
             The `Sample` object to add to the collection.
         """
         self.samples.append(sample)
+
+    def plot(self, ax, sample, wtag=False, **kwargs):
+        self.get_sample(sample).plot(ax, wtag=False, **kwargs)
 
 
             
