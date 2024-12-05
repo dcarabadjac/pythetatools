@@ -1,0 +1,153 @@
+from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
+import numpy as np
+import matplotlib.transforms as transforms
+import matplotlib.pyplot as plt
+
+RED = "\033[31m"
+RESET = "\033[0m"
+GREEN = "\033[32m"
+
+darkblue = np.array([0,102,255])/255
+midblue = np.array([51,153,255])/255
+lightblue= np.array([153,204,255])/255 
+verylightblue= '#c4e2f6'
+vermilion = np.array([217,96,59])/255
+midorange = np.array([255,153,51])/255
+bluish_green = np.array([0,158,115])/255
+darkorange = np.array([255,102,0])/255
+midorange = np.array([255,153,51])/255
+lightorange = np.array([255,204,153])/255
+
+color_mo = {0: midblue, 1: midorange}
+
+rev_afmhot = sns.color_palette("afmhot", as_cmap=True)
+rev_afmhot = rev_afmhot.reversed()
+
+t2k_style = {
+    'figure.figsize': (9, 6),
+    'lines.linewidth': 2,
+    'axes.labelsize': 25,
+    'axes.titlesize': 25,
+    'axes.grid': True,
+    'axes.grid.axis': 'both',
+    'axes.grid.which': 'both',
+    'axes.axisbelow': True,
+    'axes.spines.right': True,
+    'xtick.direction': 'in',
+    'xtick.labelsize': 25,
+    'xtick.top': True,
+    'xtick.major.width': 0.8,
+    'xtick.major.size': 10,
+    'ytick.direction': 'in',
+    'ytick.labelsize': 25,
+    'ytick.right': True,
+    'ytick.major.width': 0.8,
+    'ytick.major.size': 10,
+    'legend.fancybox': False,
+    'legend.fontsize': 20,
+    'legend.edgecolor': 'white',
+    'legend.shadow': False,
+    'grid.linewidth': 0.0,
+    'grid.linestyle': '-',
+    'font.family': 'sans-serif',
+    'font.sans-serif': ['Arial']
+}
+
+def plot_histogram(ax, xedges, z, **kwargs):
+    """
+    Plots a 1D histogram (like in ROOT).
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axis on which to plot the histogram.
+    xedges : numpy array
+        The bin edges along the x-axis.
+    z : numpy array
+        The histogram bin heights corresponding to the bin edges.
+    **kwargs : dict, optional
+        Additional keyword arguments to be passed to the `ax.step` function 
+        for customizing the plot (e.g., color, linewidth, linestyle).
+
+    Notes
+    -----
+    - This function uses a step plot to visualize the histogram, extending 
+      the first and last bin heights to zero for proper display.
+    - The length of `z` should be one less than the length of `xedges` 
+      because the bin heights correspond to the intervals between bin edges.
+    """
+    x = np.append(xedges, xedges[-1:])
+    heights = np.insert(z, 0, 0)
+    heights = np.append(heights, [0])
+    ax.step(x, heights, **kwargs)
+
+
+def show_minor_ticks(ax, axis='both'):
+    """
+    Enable minor ticks on the specified axis of a plot.
+
+    Parameters:
+    ----------
+    ax : matplotlib.axes.Axes
+        The axes object on which to enable minor ticks.
+    axis : str, optional
+        Specifies which axis to enable minor ticks on: 'x', 'y', or 'both' (default is 'both').
+
+    """
+    # Define a function to set minor ticks for a specific axis
+    def set_minor_ticks(axis_obj):
+        axis_obj.set_minor_locator(AutoMinorLocator())
+        ax.tick_params(which='minor', length=6, width=0.8)
+
+    # Enable minor ticks based on the specified axis
+    if axis in ['both', 'x']:
+        set_minor_ticks(ax.xaxis)
+    if axis in ['both', 'y']:
+        set_minor_ticks(ax.yaxis)
+    if axis not in ['both', 'x', 'y']:
+        print("Unknown axis: expected 'x', 'y', or 'both'")
+
+
+def shift_bbox_center(ax, dx, dy, exp):
+    """
+    Shift the center of an axis bounding box by a specified amount and expand it.
+
+    Parameters:
+    ----------
+    ax : matplotlib.axes.Axes
+        The axes object whose bounding box is to be shifted.
+    dx : float
+        The amount to shift the bounding box center in the x-direction.
+    dy : float
+        The amount to shift the bounding box center in the y-direction.
+    exp : tuple of floats
+        A tuple containing two values by which to expand the bounding box 
+        (scale factors for the width and height).
+
+    Returns:
+    -------
+    matplotlib.transforms.Bbox
+        The transformed bounding box, shifted and expanded as specified.
+    
+    """
+    # Get the current bounding box in display coordinates and invert it to data coordinates
+    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    
+    # Calculate current center of the bounding box
+    current_center = bbox.get_points().mean(axis=0)
+
+    # Calculate new center position
+    new_center = current_center + [dx, dy]
+
+    # Calculate the amount of shift in x and y directions
+    shift_x = new_center[0] - current_center[0]
+    shift_y = new_center[1] - current_center[1]
+
+    # Create a transform object for shifting the bounding box
+    translate = transforms.Affine2D().translate(shift_x, shift_y)
+
+    # Apply the translation transform to the bounding box
+    bbox_transformed = bbox.transformed(translate)
+
+    # Return the expanded bounding box
+    return bbox_transformed.expanded(*exp)
