@@ -338,7 +338,6 @@ class Sample:
     def nevents(self):
         return np.sum(self.__z)
 
-
     def plot(self, ax, wtag=False, **kwargs):
         """
         Plots the distrubution of the Sample object.
