@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.stats import chi2
+
 
 def find_roots(x, y, c):
     """
@@ -50,3 +52,10 @@ def get_1sigma_interval(x_data, y_data):
         return abs(roots[3] - roots[2])/2    
     else:
         print("Bad roots founds")
+    
+def cl_for_sigma(z_score):
+    return round(chi2.cdf(z_score**2, 1), 4)
+
+def critical_value_for_cl(cl, dof=2):
+    """Calculate the Δχ² value for a given confidence level and degrees of freedom."""
+    return chi2.ppf(cl, dof)

@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.transforms as transforms
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.transforms import Bbox
 
 
 RED = "\033[31m"
@@ -27,7 +28,7 @@ rev_afmhot = rev_afmhot.reversed()
 
 t2k_style = {
     'figure.figsize': (9, 6),
-    'lines.linewidth': 2,
+    'lines.linewidth': 3,
     'axes.labelsize': 25,
     'axes.titlesize': 25,
     'axes.grid': True,
@@ -110,7 +111,7 @@ def show_minor_ticks(ax, axis='both'):
         print("Unknown axis: expected 'x', 'y', or 'both'")
 
 
-def shift_bbox_center(ax, dx, dy, exp):
+def shift_bbox_center(fig, ax, dx, dy, exp):
     """
     Shift the center of an axis bounding box by a specified amount and expand it.
 
@@ -153,3 +154,17 @@ def shift_bbox_center(ax, dx, dy, exp):
 
     # Return the expanded bounding box
     return bbox_transformed.expanded(*exp)
+
+
+def full_extent(ax, pad=0.0):
+    """Get the full extent of an axes, including axes labels, tick labels, and
+    titles."""
+    # For text objects, we need to draw the figure first, otherwise the extents
+    # are undefined.
+    ax.figure.canvas.draw()
+    items = ax.get_xticklabels() + ax.get_yticklabels() 
+    items += [ax, ax.title, ax.xaxis.label, ax.yaxis.label]
+    #items += [ax, ax.title]
+    bbox = Bbox.union([item.get_window_extent() for item in items])
+
+    return bbox.expanded(1.0 + pad, 1.0 + pad)

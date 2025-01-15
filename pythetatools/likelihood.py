@@ -1,130 +1,257 @@
 from array import array
-import ROOT
+import uproot
 import numpy as np
 from .global_names import *
-from .general_functions import show_minor_ticks
+from .base_visualisation import *
+from .base_analysis import *
 import sys
+import glob
+import pandas as pd
 
 
-def read_margtemplates_1D(filename, mo='both'):
-    # Open the ROOT file
-    file = ROOT.TFile(filename, "READ")
-    if file.IsZombie():
-        print(f"Error opening file {filename}")
-        return None
+def load(file_pattern, dim, mo='both'):
+    """Loads the MargTemplates files with given file pattern 
 
-    # Get the "MargTemplate" tree
-    input_tree = file.Get("MargTemplate")
-    if not input_tree:
-        print(f"'MargTemplate' tree not found in file {filename}")
-        return None
+    Parameters
+    ----------
+    file_pattern : string
+        The file patern of the files to be loaded
+    dim : Likelihood dimension: 1D or 2D
 
-    # Determine the number of entries (ngrid)
-    nEntries = input_tree.GetEntries()
-    print(f"Number of entries in 'MargTemplate': {nEntries}")
-
-    # Prepare a dictionary to hold the branch data
-    branches = {}
-    branch_types = {
-        'Double_t': 'd',  # Double
-        'Float_t': 'f',  # Float
-        'Int_t': 'i',  # Integer
-        'Long_t': 'l'   # Long
-    }
-    noscparams = 0
-    ndiscrparams = 0
-    for branch in input_tree.GetListOfBranches():
-        branch_name = branch.GetName()
-        if branch_name in osc_param_name:
-            noscparams += 1
-            print("Grid for oscillation parameter found: {}".format(branch_name))
-            param_name = branch_name
-            branch_type_code = branch.GetLeaf(branch_name).GetTypeName()
-        elif branch_name=='mh':
-            ndiscrparams = 1
-            print("Grid for mh found")          
-        else:
-            continue
-        
-        if branch_type_code in branch_types:
-            branch_type = branch_types[branch_type_code]
-        else:
-            print(f"Unsupported branch type: {branch_type_code} for branch {branch_name}")
-            continue
-
-    if ndiscrparams==1:
-        mo_value = array('d', [0])
-        input_tree.SetBranchAddress('mh', mo_value)
+    Returns
+    ------
+    grid, AvNLLtot, param_name 
+        An object of ToyXp class containt all the asimovs stored in the root file
+    """
+    if dim==1:
+        return load_1D(file_pattern, mo=mo)
+    elif dim==2:
+        return load_2D(file_pattern, mo=mo)
     else:
-        mo_value = mo
-        
-    grid_branch_cont = array(branch_type, [0])   
-    input_tree.SetBranchAddress(param_name, grid_branch_cont)
-    AvNLLtot_branch_cont = array('d', [0])
-    input_tree.SetBranchAddress("AvNLLtot", AvNLLtot_branch_cont)
-    
-    if noscparams > 1:
-        raise ValueError("Error: Number of continous osc. params = {} is greater that one, however it is function 1D plot ".format(noscparams))
-    elif noscparams ==0:
-        raise ValueError("Error: Continous osc. param. not found in the tree  ")
-        
-    ngrid = nEntries//(1+ndiscrparams)
-    print("Number of grid point for {} = {}".format(param_name, ngrid))
+        raise ValueError("The implementation is only realised for dim=1 or dim=2.")
 
-    AvNLLtot = {0: np.zeros(ngrid), 1: np.zeros(ngrid)} if ndiscrparams==1 else {mo: np.zeros(ngrid)}
-    grid = np.zeros(ngrid)
+def load_1D(filename,  mo='both'):
+    with uproot.open(filename) as file:
+        if "MargTemplate" not in file:
+            print(f"'MargTemplate' tree not found in file {filename}")
+            return None
 
-    for entry in range(nEntries):
-        input_tree.GetEntry(entry)
-        AvNLLtot[int(mo_value[0])][entry//(ndiscrparams+1)] = AvNLLtot_branch_cont[0]
-        grid[entry//(ndiscrparams+1)] = grid_branch_cont[0]
+        input_tree = file["MargTemplate"]
+
+        nEntries = input_tree.num_entries
+        print(f"Number of entries in 'MargTemplate': {nEntries}")
+
+        # Prepare to extract branches
+        branches = input_tree.keys()
+        noscparams = 0
+        ndiscrparams = 0
+        param_name = None
+        
+        # Check for oscillation parameter and 'mh' branch
+        for branch_name in branches:
+            if branch_name in osc_param_name:
+                noscparams += 1
+                print(f"Grid for oscillation parameter found: {branch_name}")
+                param_name = branch_name
+            elif branch_name == 'mh':
+                ndiscrparams = 1
+                print("Grid for mh found")
+        
+        # Error handling for multiple or missing oscillation parameters
+        if noscparams > 1:
+            raise ValueError(f"Error: Number of continuous osc. params = {noscparams} is greater than one but expected 1D dchi2.")
+        elif noscparams == 0:
+            raise ValueError("Error: Continuous osc. parameter not found in the tree.")
+        if (ndiscrparams==0 and (mo!=1 and mo!=0)):
+            raise ValueError("Error: The marginalisation was performed only for one mass ordering hypothesis. Please specisy in argument mo the assumed MO: mo=0 for NO, mo=1 for IO")
+        
+        # Read the 'mh' values if present
+        if ndiscrparams == 1:
+            mh_values = input_tree['mh'].array(library='np')
+
+        # Read the parameter grid and AvNLLtot values
+        grid_values = input_tree[param_name].array(library='np')
+        AvNLLtot_values = input_tree["AvNLLtot"].array(library='np')
+
+        # Determine the number of grid points for the parameter
+        ngrid = nEntries // (1 + ndiscrparams)
+        print(f"Number of grid points for {param_name} = {ngrid}")
+
+        # Initialize storage for AvNLLtot and grid arrays
+        AvNLLtot = {0: np.zeros(ngrid), 1: np.zeros(ngrid)} if ndiscrparams == 1 else {mo: np.zeros(ngrid)}
+        grid = np.zeros(ngrid)
+
+        # Fill in the arrays based on the entries
+        for entry in range(nEntries):
+            mh_grid_index = int(mh_values[entry]) if ndiscrparams == 1 else mo
+            osc_param_index = entry // (ndiscrparams + 1)
+            AvNLLtot[mh_grid_index][osc_param_index] = AvNLLtot_values[entry]
+            grid[osc_param_index] = grid_values[entry]
 
     return grid, AvNLLtot, param_name
 
-class Dchi2:
-    def __init__(self, grid, avnllh, param_name, kind='2D'):
-        self.grid = grid
-        self.avnllh = avnllh
-        self.param_name = param_name
-        if kind == '2D':
-            minimum = {key: min(np.min(array) for array in self.avnllh.values()) for key in self.avnllh.keys()} 
+
+def load_2D(file_pattern,  mo='both'):
+    """
+    Load 2D likelihood from MargTemplate output.
+
+    This function reads ROOT files containing a `MargTemplate` tree, processes the files to
+    build the array of AvNLL values and the corresdinds grids
+
+    Parameters:
+    -----------
+    file_pattern : str
+        A file path pattern (e.g., using wildcards) matching the ROOT files to be processed.
+    mo : str or int, optional
+        Specifies the assumed mass ordering (MO):
+        - 'both': load both tested NO and IO.
+        - 0: load tested Normal Ordering (NO).
+        - 1: load tested Inverted Ordering (IO).
+        Default is 'both'.
+
+    Returns:
+    --------
+    tuple:
+        grid : list of numpy.ndarray
+            A list containing two arrays, each representing the grid points for one of the 
+            two oscillation parameters.
+        AvNLLtot : dict
+            A dictionary where the keys correspond to mass ordering indices (0 for NO, 1 for IO), 
+            and the values are 2D arrays of AvNLL values across the parameter grid.
+        param_name : list of str
+            Names of the oscillation parameters used in the grid.
+    """
+    #Merge all the trees to one pandas dataframe
+    combined_data = [] 
+    filenames = glob.glob(file_pattern)
+    for filename in filenames:
+        with uproot.open(filename) as file:
+            if 'MargTemplate' not in file:
+                print(f"MargTemplate tree not found in file {filename}")
+                continue 
+            input_tree = file['MargTemplate']
+            data = input_tree.arrays(library="pd")
+            combined_data.append(data)
+    combined_trees = pd.concat(combined_data, ignore_index=True)
+
+    nEntries = combined_trees.shape[0]
+    print(f"Number of entries in 'MargTemplate': {combined_trees.shape[0]}.")
+
+    # Prepare to extract branches
+    branches = list(combined_trees.columns)
+    noscparams = 0
+    ndiscrparams = 0
+    param_name = []
+    
+    # Check for oscillation parameter and 'mh' branch
+    for branch_name in branches:
+        if branch_name in osc_param_name:
+            noscparams += 1
+            print(f"Grid for oscillation parameter found: {branch_name}")
+            param_name.append(branch_name)
+        elif branch_name == 'mh':
+            ndiscrparams = 1
+            print("Grid for mh found")
+    
+    # Error handling for multiple or missing oscillation parameters
+    if noscparams > 2:
+        raise ValueError(f"Error: Number of continuous osc. params = {noscparams} is greater than 2 but expected 2D dchi2.")
+    if noscparams == 1:
+        raise ValueError(f"Error: Number of continuous osc. params = {noscparams}, use instead dim=1")
+    elif noscparams == 0:
+        raise ValueError("Error: Continuous osc. parameter not found in the tree.")
+
+    if not (ndiscrparams==0 and (mo==1 or mo==0)):
+        raise ValueError("Error: The marginalisation was performed only for one mass ordering hypothesis. Please specisy in argument mo the assumed MO: mo=0 for NO, mo=1 for IO")
+    
+    # Read the 'mh' values if present
+    if ndiscrparams == 1:
+        mh_values = np.array(combined_trees['mh'])
+
+    # Read the parameter grid and AvNLLtot values
+    grid_values = [None]*2
+    grid = [None]*2
+    grid_values[0] = np.round(np.array(combined_trees[param_name[0]]), 8)
+    grid_values[1] = np.round(np.array(combined_trees[param_name[1]]), 8)  
+    AvNLLtot_values = np.array(combined_trees["AvNLLtot"]) 
+    grid[0] = np.unique(grid_values[0]) #Returns the sorted unique elements of an array.
+    grid[1] = np.unique(grid_values[1]) #Returns the sorted unique elements of an array.
+
+    # Determine the number of grid points for the parameter
+    ngrid = [None]*2
+    for i in range(2):
+        ngrid[i] = grid[i].size
+        print(f"Number of grid points for {param_name[i]} = {ngrid[i]}")
+        
+    assert ngrid[0]*ngrid[1]*ndiscrparams != combined_trees.shape[0], "Problem in grids size determination"
+    
+    # Initialize storage for AvNLLtot
+    AvNLLtot = {0: np.zeros((ngrid[0], ngrid[1])), 1: np.zeros((ngrid[0], ngrid[1]))} if ndiscrparams == 1 else {mo: np.zeros((ngrid[0], ngrid[1]))}
+    
+    # Fill in the arrays based on the entries. This does not depend on the order as the files are read
+    for entry in range(nEntries):
+        osc_param_index = [None]*2
+        mh_grid_index = int(mh_values[entry]) if ndiscrparams == 1 else mo
+        osc_param_index[0] = np.where(grid[0]==grid_values[0][entry])[0][0]
+        osc_param_index[1] = np.where(grid[1]==grid_values[1][entry])[0][0]
+        AvNLLtot[mh_grid_index][osc_param_index[0]][osc_param_index[1]] = AvNLLtot_values[entry]
+
+    return combined_trees, grid, AvNLLtot, param_name
+
+def swap_elements(lst):
+    """Helper function to swap the first and second elements of a list."""
+    if len(lst) > 1:
+        lst[0], lst[1] = lst[1], lst[0]
+
+class likelihood:
+    def __init__(self, grid, avnllh, param_name, kind='joint'):
+        self.__grid = grid
+        self.__avnllh = avnllh
+        self.__param_name = param_name
+        if param_name == ['dm2', 'sin223']:
+            swap_elements(self.__grid)
+            swap_elements(self.__param_name)
+            for key in self.__avnllh.keys():
+                self.__avnllh[key] = self.__avnllh[key].transpose()
+            
+        if kind == 'joint':
+            minimum = {key: min(np.min(array) for array in self.__avnllh.values()) for key in self.__avnllh.keys()} 
         elif kind == 'conditional':
-            minimum = {key: np.min(self.avnllh[key]) for key in self.avnllh.keys()} 
+            minimum = {key: np.min(self.__avnllh[key]) for key in self.__avnllh.keys()} 
             
-        self.dchi2 = {key: 2*(value-minimum[key]) for key, value in self.avnllh.items()}
-        if len(list(self.dchi2.keys())) == 2:
-            self.mo = 'both'
+        self.__dchi2 = {key: 2*(value-minimum[key]) for key, value in self.__avnllh.items()}
+        if len(list(self.__dchi2.keys())) == 2:
+            self.__mo = 'both'
         else:
-            self.mo = self.dchi2.keys()[0]
+            self.__mo = list(self.__dchi2.keys())[0]
 
-    def plot(self, ax, mo=None, **kwargs):
-        if not mo is None:
-            ax.plot(self.grid, self.dchi2[mo], color=color_mo[mo], label=mo_to_label[mo], **kwargs)
-            ax.set_xlabel(osc_param_name_to_xlabel[self.param_name][mo])
+    def ndim(self):
+        return len(self.__grid)
+
+    def plot(self, ax, wtag=False, mo=None, show_legend=True, show_map=False, cls=['1sigma', '90%', '3sigma'], **kwargs):
+        if self.ndim() == 1:
+            self._plot_1d(ax, wtag, mo, show_legend, **kwargs)
+        elif self.ndim() == 2:
+            self._plot_2d(ax, wtag, mo, show_map, cls, **kwargs)
         else:
-            for key, value in self.dchi2.items():
-                ax.plot(self.grid, value, color=color_mo[key], label=mo_to_label[key], **kwargs)
-            ax.set_xlabel(osc_param_name_to_xlabel[self.param_name][self.mo])    
-            
-        ax.set_ylabel(r'$\Delta \chi^2$')
-        show_minor_ticks(ax)
-        ax.set_ylim(0)
-        ax.legend(edgecolor='white')
+            raise ValueError("Plotting is only supported for 1D and 2D delta chi2.")     
 
-    def find_CI(self, nsigma):
+
+    def find_CI(self, nsigma, mo):
+        
         edges_left = []   
         edges_right = []
         c = np.sqrt(nsigma)
 
         #Treat the case if margin points in inside C.I.
-        if self.dchi2[0] <= c:
+        if self.dchi2[mo][0] <= c:
             edges_left.append(self.grid[0])
-        if self.dchi2[-1] <= c:
+        if self.dchi2[mo][-1] <= c:
             edges_right.append(self.grid[-1])
 
         #Find all the margins of C.I.
         for i in range(len(self.grid) - 1):
-            y0, y1 = self.dchi2[i], self.dchi2[i + 1]
+            y0, y1 = self.dchi2[mo][i], self.dchi2[mo][i + 1]
             if (y0 - c)>=0 and (y1 - c)<=0:
                 x0, x1 = self.grid[i], self.grid[i + 1]
                 edge_left = x0 + (x1 - x0) * (c - y0) / (y1 - y0)
@@ -135,4 +262,63 @@ class Dchi2:
                 edges_right.append(edge_right) 
                 
         return edges_left, edges_right
+
+
+    def _plot_1d(self, ax, wtag, mo, show_legend, **kwargs):
+        if not mo is None:
+            ax.plot(self.__grid, self.__dchi2[mo], color=kwargs.pop('color', color_mo[mo]), label=kwargs.pop('label', mo_to_label[mo]), **kwargs)
+            ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name][mo])
+        else:
+            for key, value in self.__dchi2.items():
+                ax.plot(self.__grid, value, color=color_mo[key], label=mo_to_label[key], **kwargs)
+            ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name][self.__mo])    
+            
+        ax.set_ylabel(r'$\Delta \chi^2$')
+        show_minor_ticks(ax)
+        ax.set_ylim(0)
+        if show_legend:
+            ax.legend(edgecolor='white')
+
+
+    def _plot_2d(self, ax, wtag, mo, show_map, cls, **kwargs):
+        critical_values = []
+        fmt = {}
+        color = color_mo[mo]
+        for cl in cls:
+            if 'sigma' in cl:
+                z_score = float(cl.replace('sigma', '').strip())
+                coverage = cl_for_sigma(z_score)
+            elif '%' in cl:
+                coverage = float(cl.replace('%', '').strip())/100
+            else:
+                raise ValueError("cls should be a list, where each element has to have one of the two forms: '<z_score>sigma' or '<CL>%'")  
+            critical_value = round(critical_value_for_cl(coverage, dof=2), 4)
+            fmt[critical_value] = f'{coverage*100:.2f} %'
+            critical_values.append(critical_value)
+            
+        if show_map and mo is not None:
+            mesh = ax.pcolormesh(self.__grid[0], self.__grid[1], self.__dchi2[mo].transpose(), zorder=0,  **kwargs)
+            cbar = plt.colorbar(mesh, ax=ax)    
+            color = 'white'
+       
+        if not mo is None:
+            if mo in self.__dchi2.keys():
+                contour = ax.contour(self.__grid[0], self.__grid[1], self.__dchi2[mo].transpose(), 
+                                     levels=critical_values, colors=color, linewidths=2, 
+                                     zorder=1, linestyles=['-', '--', 'dotted'])
+            else:
+                raise ValueError(f"There is not dchi2 with mo={mo}")  
+        else:
+            for key, value in self.__dchi2.items():
+                contour = ax.contour(self.__grid[0], self.__grid[1], self.__dchi2[key].transpose(), 
+                        levels=critical_values, colors=color, linewidths=2, 
+                        zorder=1, linestyles=['-', '--', 'dotted'])
+
+        ax.ticklabel_format(style='scientific', axis='y', scilimits=(-3, 3))
+        ax.clabel(contour, fontsize=20, fmt=fmt)
+        ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name[0]][mo])
+        ax.set_ylabel(osc_param_name_to_xlabel[self.__param_name[1]][mo])
+        show_minor_ticks(ax)
+
+
 
