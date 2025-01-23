@@ -109,7 +109,7 @@ def load(file_pattern, nthrows_per_file, target_nthrows, mo="both"):
 
     return grid, AvNLLtot, param_name
 
-class loglikelihood:
+class Loglikelihood:
     """
     A class to compute and visualize 1D or 2D log-likelihood and Δχ² for oscillation parameter analyses.
     
@@ -148,6 +148,7 @@ class loglikelihood:
         self.__grid = grid
         self.__avnllh = avnllh
         self.__param_name = param_name
+        self.__kind = kind
         
         # Validate 'kind' argument
         if kind not in ['joint', 'conditional']:
@@ -163,6 +164,39 @@ class loglikelihood:
             
         self.__mo = 'both' if len(self.__avnllh.keys()) == 2 else list(self.__avnllh.keys())[0]
         self.__dchi2 = self.__calculate_dchi2(kind)
+        
+    def __add__(self, other):
+        if isinstance(other, Loglikelihood) and all(len(self.grid[i]) == len(other.grid[i]) for i in range(len(self.grid))) and self.__param_name == other.__param_name:
+            return Loglikelihood(self.grid, self.avnllh + other.avnllh, self.param_name, self.__kind)
+        raise ValueError("Incompatible types or sizes of operands")
+        
+    def __sub__(self, other):
+        if isinstance(other, Loglikelihood) and \
+        all(len(self.grid[i]) == len(other.grid[i]) for i in range(len(self.grid))) and \
+        self.__param_name == other.__param_name:
+            
+            result = {key: self.avnllh[key] - other.avnllh[key] for key in self.avnllh.keys()}
+            return Loglikelihood(self.grid, result, self.param_name, self.__kind)
+        raise ValueError("Incompatible types or sizes of operands")
+        
+    def __truediv__(self, other):
+        if isinstance(other, Loglikelihood) and \
+        all(len(self.grid[i]) == len(other.grid[i]) for i in range(len(self.grid))) and \
+        self.__param_name == other.param_name:
+            
+            result = {}
+            for key in self.avnllh.keys():
+                where_zeros = other.avnllh[key]==0
+                ratio = np.zeros_like(self.avnllh[key])
+                ratio[where_zeros] = 0
+                ratio[~where_zeros] = self.avnllh[key][~where_zeros] / self.avnllh[key][~where_zeros]
+                result[key] = ratio
+            return Loglikelihood(self.grid, result, self.param_name, self.__kind)
+        raise ValueError("Incompatible types or sizes of operands")
+        
+    def __mul__(self, number):
+        result = {key: self.avnllh[key]*number for key in self.avnllh.keys()}
+        return Loglikelihood(self.grid, result, self.param_name, self.__kind)
 
     def __find_minimum(self, array):
         def calculate_x0(bounds):

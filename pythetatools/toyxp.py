@@ -316,19 +316,21 @@ class Sample:
         return f"Sample: {self.title}; Dimension: {self.ndim()}; Shape: {self.z.shape} Total events: {self.nevents()}"
     
     def __add__(self, other):
-        if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
+        if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
             return Sample(self.bin_edges, self.z + other.z)
+        elif isinstance(other,(int, float)):
+            return Sample(self.bin_edges, self.z + other)
         raise ValueError("Incompatible types or sizes of operands")
         
     def __sub__(self, other):
-        if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
+        if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
             return Sample(self.bin_edges, self.z - other.z)
-        raise ValueError("Incompatible types of operands")
+        elif isinstance(other,(int, float)):
+            return Sample(self.bin_edges, self.z - other)
+        raise ValueError("Incompatible types or sizes of operands")
         
-    def __mul__(self, other):
-        if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
-            return Sample(self.bin_edges, self.z * other.z)
-        raise ValueError("Incompatible types of operands")
+    def __mul__(self, number):
+        return Sample(self.bin_edges, self.z * number)
             
     def __neg__(self):
         return Sample(self.bin_edges, -self.z)
@@ -640,8 +642,6 @@ class ToyXp:
         """
         self.samples.append(sample)
 
-    def plot(self, ax, sample, wtag=False, **kwargs):
-        self.get_sample(sample).plot(ax, wtag=False, **kwargs)
 
 
             
