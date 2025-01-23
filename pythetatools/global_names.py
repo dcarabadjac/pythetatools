@@ -21,11 +21,11 @@ analysis_type_yedges = {'Erec':None,       'e-theta':theta_numu_edges, 'PTheta':
 sample_to_nuflav = {'numu1R':'numu', 'nue1R':'nue', 'numubar1R':'numu', 'nuebar1R':'nue', 'numucc1pi':'numu', 'nuecc1pi':'nue', 'nue1RD':'nue'}
 sample_to_title = {'numu1R':r'$\nu_\mu$ 1R', 'nue1R':r'$\nu_e$ 1R', 'numubar1R':r'$\bar{\nu}_\mu$ 1R', 'nuebar1R':r'$\bar{\nu}_e$ 1R', 'numucc1pi':r'MR $\nu_\mu$CC$1\pi^{+}$', 'nuecc1pi':r'1R $\nu_e$CC$1\pi^{+}$', 'nue1RD':r'1R $\nu_e$ 1 d.e.$'}
 
-analysis_type_to_xlabel = {'Erec':'Energy [GeV]', 'e-theta':'Energy [GeV]', 'PTheta': 'Electron momentum [MeV]', 'P':'Electron momentum [MeV]'}
-analysis_type_to_xtickspos = {'Erec':np.arange(0, 3.5, 0.5), 'e-theta':np.arange(0, 3.5, 0.5), 'PTheta': np.arange(0, 1300, 200), 'P':np.arange(0, 1300, 200)}
-analysis_type_to_xmax = {'Erec':3, 'e-theta':3, 'PTheta': 1300, 'P':1300}
+analysis_type_to_xlabel = {'Erec':'Energy [GeV]', 'e-theta':'Energy [GeV]', 'PTheta': 'Electron momentum [MeV]', 'P':'Electron momentum [MeV]', 'Theta':r'Angle [deg]'}
+analysis_type_to_xtickspos = {'Erec':np.arange(0, 3.5, 0.5), 'e-theta':np.arange(0, 3.5, 0.5), 'PTheta': np.arange(0, 1300, 200), 'P':np.arange(0, 1300, 200), 'Theta':np.arange(0, 200, 20)}
+analysis_type_to_xmax = {'Erec':3, 'e-theta':3, 'PTheta': 1300, 'P':1300 ,'Theta':180}
 
-analysis_type_to_xvar = {'Erec':'Erec', 'e-theta':'Erec', 'PTheta': 'p', 'P':'p'}
+analysis_type_to_xvar = {'Erec':'Erec', 'e-theta':'Erec', 'PTheta': 'p', 'P':'p', 'Theta':r'$\theta$'}
 
 mo_to_label = {0: 'Normal Ordering', 1: 'Inverted Ordering'}
 osc_param_name = ["delta", "dm2", "sin223", "sin213"]

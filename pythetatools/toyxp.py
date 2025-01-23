@@ -70,9 +70,9 @@ def load_hists(filename):
             z = hist.values()
             if analysis_type =='e-theta' or analysis_type =='PTheta':
                 yedges = hist.axis(1).edges()
-                toy.append_sample(Sample([xedges, yedges], z, sample_title, analysis_type))    
+                toy.append(Sample([xedges, yedges], z, sample_title, analysis_type))    
             else:
-                toy.append_sample(Sample([xedges], z, sample_title, analysis_type))  
+                toy.append(Sample([xedges], z, sample_title, analysis_type))  
         
     return toy
 
@@ -134,10 +134,10 @@ def load_toy(filename, itoy):
         for sample_title, analysis_type in samples_dict.items():
             if analysis_type_to_dim[analysis_type] == '1D':
                 sample = bin_sample1D(sample_title, *load_tree(filename, sample_title, analysis_type, itoy), analysis_type)
-                toy.append_sample(sample)
+                toy.append(sample)
             elif analysis_type_to_dim[analysis_type] == '2D':
                 sample = bin_sample2D(sample_title, *load_tree(filename, sample_title, analysis_type, itoy), analysis_type)
-                toy.append_sample(sample)
+                toy.append(sample)
     return toy
 
 def load(filename, type, itoy=None):
@@ -310,10 +310,38 @@ class Sample:
                 f"Shape mismatch: bin_edges implies shape {bin_egdes_shape}, "
                 f"but z has shape {self.__z.shape}. Numer of bin edges = number of bins + 1"
             )
-
-    
+            
+    #Implement useful special methods
     def __str__(self):
         return f"Sample: {self.title}; Dimension: {self.ndim()}; Shape: {self.z.shape} Total events: {self.nevents()}"
+    
+    def __add__(self, other):
+        if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
+            return Sample(self.bin_edges, self.z + other.z)
+        raise ValueError("Incompatible types or sizes of operands")
+        
+    def __sub__(self, other):
+        if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
+            return Sample(self.bin_edges, self.z - other.z)
+        raise ValueError("Incompatible types of operands")
+        
+    def __mul__(self, other):
+        if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
+            return Sample(self.bin_edges, self.z * other.z)
+        raise ValueError("Incompatible types of operands")
+            
+    def __neg__(self):
+        return Sample(self.bin_edges, -self.z)
+
+    def __truediv__(self, other):
+        if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
+            where_zeros = other.z==0
+            ratio = np.zeros_like(self.z)
+            ratio[where_zeros] = 0
+            ratio[~where_zeros] = self.z[~where_zeros] / other.z[~where_zeros]
+            return Sample(self.bin_edges, ratio)
+        raise ValueError("Incompatible types of operands")
+        
 
     #Set getters
     @property
@@ -392,6 +420,12 @@ class Sample:
             return self._rebin_2d(new_bin_edges)
         else:
             raise ValueError("Rebinning is only supported for 1D and 2D samples.")
+            
+    def project_to_x(self):
+        return self.rebin([self.bin_edges[0], [self.bin_edges[1][0], self.bin_edges[1][-1]]])
+    
+    def project_to_y(self):
+        return self.rebin([[self.bin_edges[0][0], self.bin_edges[0][-1]], self.bin_edges[1]])
 
     def slice(self, *args):
         """
@@ -509,7 +543,7 @@ class Sample:
         old_yedges = self.bin_edges[1]
         
         if all(new_xedge in old_xedges for new_xedge in new_xedges) and all(new_yedge in old_yedges for new_yedge in new_yedges):
-            new_z = np.zeros((new_xedges.shape[0]-1, new_yedges.shape[0]-1))
+            new_z = np.zeros((len(new_xedges)-1, len(new_yedges)-1))
             j = 0
             for m in range(self.z.shape[1]):
                 if old_yedges[m] >= new_yedges[j+1]:
@@ -520,9 +554,9 @@ class Sample:
                         i += 1
                     new_z[i][j] += self.z[k][m]
                     
-            if new_yedges.shape[0] > 2 and new_xedges.shape[0] > 2:
+            if len(new_yedges) > 2 and len(new_xedges) > 2:
                 return Sample( [new_xedges, new_yedges], new_z, self.title, self.analysis_type)
-            if new_yedges.shape[0] == 2:
+            if len(new_yedges) == 2:
                 if self.analysis_type=='e-theta':
                     analysis_type = 'Erec'
                 elif self.analysis_type=='PTheta':
@@ -530,7 +564,7 @@ class Sample:
                 else:
                     analysis_type = None
                 return Sample( [new_xedges], new_z.transpose()[0], self.title, analysis_type)
-            if new_xedges.shape[0] == 2:
+            if len(new_xedges) == 2:
                 if self.analysis_type=='e-theta' or self.analysis_type=='PTheta':
                     analysis_type = 'Theta'
                 else:
@@ -555,7 +589,7 @@ class ToyXp:
         Returns the titles of all samples in the collection.
     get_sample(title):
         Retrieves a sample from the collection by its title.
-    append_sample(sample):
+    append(sample):
         Adds a new sample to the collection.
     """
 
@@ -574,6 +608,12 @@ class ToyXp:
         result = f'{len(self.samples)} samples are included in this toy: \n'
         result += '\n'.join(str(sample) for sample in self.samples)
         return result
+           
+    def __getitem__(self, key):
+        for index, sample in enumerate(self.samples):
+            if sample.title == key:
+                return self.samples[index]
+        raise ValueError(f"Sample with title {key} not found")
 
     def get_titles(self):
         """
@@ -589,31 +629,7 @@ class ToyXp:
             titles.append(sample.title)
         return titles
 
-    def get_sample(self, title):
-        """
-        Retrieves a sample from the collection by its title.
-
-        Parameters
-        ----------
-        title : str
-            The title of the sample to retrieve.
-
-        Returns
-        -------
-        Sample
-            The `Sample` object with the specified title.
-
-        Raises
-        ------
-        ValueError
-            If no sample with the given title is found in the collection.
-        """
-        for sample in self.samples:
-            if sample.title == title:
-                return sample
-        raise ValueError(f"Sample {title} not found in this toy")
-
-    def append_sample(self, sample):
+    def append(self, sample):
         """
         Adds a new sample to the collection.
 
@@ -630,3 +646,4 @@ class ToyXp:
 
             
             
+

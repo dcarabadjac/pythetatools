@@ -338,13 +338,22 @@ class loglikelihood:
         pass
 
     def _plot_1d(self, ax, wtag, mo, show_legend, **kwargs):
-        if not mo is None:
-            ax.plot(self.__grid[0], self.__dchi2[mo], color=kwargs.pop('color', color_mo[mo]), 
-                    label=kwargs.pop('label', mo_to_label[mo]), **kwargs)
-            ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name][mo])
+            
+        default_kwargs = {}
+        if mo in [0, 1]:
+            default_kwargs = {
+                'color': color_mo[mo], 
+                'label': mo_to_label[mo]   
+            }
+        default_kwargs.update(kwargs)
+
+        
+        if mo in [0, 1]:
+            ax.plot(self.__grid[0], self.__dchi2[mo], **default_kwargs)
+            ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name[0]][mo])
         else:
-            for key, value in self.__dchi2.items():
-                ax.plot(self.__grid[0], value, color=color_mo[key], label=mo_to_label[key], **kwargs)
+            for mo in self.__dchi2.keys():
+                ax.plot(self.__grid[0], self.__dchi2[mo], color=color_mo[mo], label=mo_to_label[mo], **kwargs)
             ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name[0]][self.__mo])    
             
         ax.set_ylabel(r'$\Delta \chi^2$')
@@ -353,46 +362,74 @@ class loglikelihood:
         if show_legend:
             ax.legend(edgecolor='white')
 
-    def _plot_2d(self, ax, wtag, mo, show_map, cls, **kwargs):
-        critical_values = []
-        fmt = {}
-        color = color_mo[mo]
-        for cl in cls:
-            if 'sigma' in cl:
-                z_score = float(cl.replace('sigma', '').strip())
-                coverage = cl_for_sigma(z_score)
-            elif '%' in cl:
-                coverage = float(cl.replace('%', '').strip())/100
-            else:
-                raise ValueError("cls should be a list, where each element has to have one of the two forms: '<z_score>sigma' or '<CL>%'")  
-            critical_value = round(critical_value_for_cl(coverage, dof=2), 4)
-            fmt[critical_value] = f'{coverage*100:.2f} %'
-            critical_values.append(critical_value)
+    def _plot_2d(self, ax, wtag, mo, show_map, cls, contour_kwargs=None, scatter_kwargs=None, map_kwargs=None):
+
+        if mo in [0, 1]:
+            default_contour_kwargs = {
+                'colors': color_mo[mo]
+                }
+            default_scatter_kwargs = {
+                'color': color_mo[mo],
+                'marker': 'x'
+                }
+            default_map_kwargs = {
+                'cmap': rev_afmhot
+                }
+        if contour_kwargs is not None:
+            default_contour_kwargs.update(contour_kwargs)
+        if scatter_kwargs is not None:
+            default_scatter_kwargs.update(scatter_kwargs)
+        if map_kwargs is not None:
+            default_map_kwargs.update(map_kwargs)
+
+        def get_chi2_critical_values():
+            critical_values = []
+            fmt = {}
+            color = color_mo[mo]
+            for cl in cls:
+                if 'sigma' in cl:
+                    z_score = float(cl.replace('sigma', '').strip())
+                    coverage = cl_for_sigma(z_score)
+                elif '%' in cl:
+                    coverage = float(cl.replace('%', '').strip())/100
+                else:
+                    raise ValueError("cls should be a list, where each element has to have one of the two forms: '<z_score>sigma' or '<CL>%'")  
+                critical_value = round(critical_value_for_cl(coverage, dof=self.ndim()), 4)
+                fmt[critical_value] = f'{coverage*100:.2f} %'
+                critical_values.append(critical_value)
+            return critical_values, fmt
+
+        def plot_contour_for_mo(mo):
+            contour = ax.contour(self.__grid[0], self.__grid[1], self.__dchi2[mo].transpose(), 
+                                 levels=critical_values, zorder=1, linestyles=['-', '--', 'dotted'], **default_contour_kwargs)
+            ax.clabel(contour, fontsize=20, fmt=fmt)
+            
+        def plot_map_for_mo(mo):
+            mesh = ax.pcolormesh(self.__grid[0], self.__grid[1], self.__dchi2[mo].transpose(), zorder=0, **default_map_kwargs)
+            cbar = plt.colorbar(mesh, ax=ax)
+                
+        critical_values, fmt = get_chi2_critical_values() #fmt necessary to set nice labels on the contours
             
         if show_map and mo is not None:
-            mesh = ax.pcolormesh(self.__grid[0], self.__grid[1], self.__dchi2[mo].transpose(), zorder=0,  **kwargs)
-            cbar = plt.colorbar(mesh, ax=ax)
-            print(self.__min)
-            plt.scatter(self.__min)
+            plot_map_for_mo(self, mo)
+            plt.scatter(*self.__min, **default_scatter_kwargs)
             color = 'white'
+        elif show_map and mo is None:
+            raise ValueError(f"Tested mo is None. If you want to plot the heat map, mo should be specified")
        
         if mo is not None:
             if mo in self.__dchi2.keys():
-                contour = ax.contour(self.__grid[0], self.__grid[1], self.__dchi2[mo].transpose(), 
-                                     levels=critical_values, colors=color, linewidths=2, 
-                                     zorder=1, linestyles=['-', '--', 'dotted'])
-                print(self.__min)
-                plt.scatter(*self.__min, marker='x')
+                plot_contour_for_mo(mo)
+                plt.scatter(*self.__min, **default_scatter_kwargs)
+
             else:
                 raise ValueError(f"There is not dchi2 with mo={mo}")  
         else:
-            for key, value in self.__dchi2.items():
-                contour = ax.contour(self.__grid[0], self.__grid[1], self.__dchi2[key].transpose(), 
-                        levels=critical_values, colors=color, linewidths=2, 
-                        zorder=1, linestyles=['-', '--', 'dotted'])
+            for mo in self.__dchi2.keys():
+                plot_contour_for_mo(mo)
+                plt.scatter(*self.__min, **default_scatter_kwargs)
 
         ax.ticklabel_format(style='scientific', axis='y', scilimits=(-3, 3))
-        ax.clabel(contour, fontsize=20, fmt=fmt)
         ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name[0]][mo])
         ax.set_ylabel(osc_param_name_to_xlabel[self.__param_name[1]][mo])
         show_minor_ticks(ax)
