@@ -263,13 +263,13 @@ class Sample:
         of dimensions.
     analysis_type : str
         The type of analysis or binning used (e.g., 'Erec', 'e-theta', or 'PTheta').
-    ndim : int
-        The number of dimensions of the histogram (1 for 1D, 2 for 2D).
 
     Methods
     -------
-    nevents():
-        Returns the total number of events in the histogram.
+    ndim() : int
+        The number of dimensions of the histogram (1 for 1D, 2 for 2D).
+    contsum():
+        Returns the total sum of bin contents of the histogram.
     plot(ax, wtag, **kwargs):
         Plots the histogram distribution on a given matplotlib axis.
     rebin(new_bin_edges):
@@ -313,27 +313,31 @@ class Sample:
             
     #Implement useful special methods
     def __str__(self):
-        return f"Sample: {self.title}; Dimension: {self.ndim()}; Shape: {self.z.shape} Total events: {self.nevents()}"
+        return f"Title: {self.title}; Dimension: {self.ndim()}; Shape: {self.z.shape}; Integral: {self.contsum()}"
     
     def __add__(self, other):
         if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
             return Sample(self.bin_edges, self.z + other.z)
         elif isinstance(other,(int, float)):
-            return Sample(self.bin_edges, self.z + other)
-        raise ValueError("Incompatible types or sizes of operands")
+            return Sample(self.bin_edges, self.z + other, self.title, self.analysis_type)
+        raise ValueError("Incompatible operand type or size")
         
     def __sub__(self, other):
         if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
             return Sample(self.bin_edges, self.z - other.z)
         elif isinstance(other,(int, float)):
-            return Sample(self.bin_edges, self.z - other)
-        raise ValueError("Incompatible types or sizes of operands")
+            return Sample(self.bin_edges, self.z - other, self.title, self.analysis_type)
+        raise ValueError("Incompatible operand type or size")
         
-    def __mul__(self, number):
-        return Sample(self.bin_edges, self.z * number)
+    def __mul__(self, other):
+        if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
+            return Sample(self.bin_edges, self.z * other.z)
+        elif isinstance(other,(int, float)):
+            return Sample(self.bin_edges, self.z * other, self.title, self.analysis_type)
+        raise ValueError("Incompatible operand type or size")
             
     def __neg__(self):
-        return Sample(self.bin_edges, -self.z)
+        return Sample(self.bin_edges, -self.z, self.title, self.analysis_type)
 
     def __truediv__(self, other):
         if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
@@ -341,8 +345,8 @@ class Sample:
             ratio = np.zeros_like(self.z)
             ratio[where_zeros] = 0
             ratio[~where_zeros] = self.z[~where_zeros] / other.z[~where_zeros]
-            return Sample(self.bin_edges, ratio)
-        raise ValueError("Incompatible types of operands")
+            return Sample(self.bin_edges, ratio, self.title, self.analysis_type)
+        raise ValueError("Incompatible operand type or size")
         
 
     #Set getters
@@ -361,11 +365,12 @@ class Sample:
     @property
     def analysis_type(self):
         return self.__analysis_type
-
+    
+    #Set methods
     def ndim(self):
         return len(self.__bin_edges)
 
-    def nevents(self):
+    def contsum(self):
         return np.sum(self.__z)
 
     def plot(self, ax, wtag=False, **kwargs):
