@@ -7,10 +7,12 @@ import os
 import uproot
 from .file_manager import download
 from .base_visualisation import *
+from copy import copy
+from collections import defaultdict
 
-    
 
-def download_toyxp(input_path, login=my_login, domain=my_domain):
+
+def download_toyxp(input_path, login=my_login, domain=my_domain, overwrite=False):
     """Dowloads the PTGenerateXp output root file 
     
     Parameters
@@ -18,9 +20,18 @@ def download_toyxp(input_path, login=my_login, domain=my_domain):
     filename : string
         The filename of PTGenerateXp output root file
     """
-    download(input_path, login=login, domain=domain, destination=os.path.join(inputs_dir, 'ToyXp'))
-    
+    download(input_path, login=login, domain=domain, destination=os.path.join(inputs_dir, 'ToyXp'), overwrite=overwrite)
 
+def get_sample_titles(filename):
+    sample_titles = []
+    
+    with uproot.open(filename) as file:
+        keys = file.keys() # Get list of all keys        
+        for key in keys:
+            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key) and not ('_' in key): #select only rec distr
+                sample_titles.append(key[1:-2])
+    return sample_titles
+    
 def get_samples_info(filename):
     """Provides information of the samples (the titles and analysis-type's) stored in PTGenerateXp output root file 
     
@@ -38,109 +49,14 @@ def get_samples_info(filename):
     with uproot.open(filename) as file:
         keys = file.keys() # Get list of all keys        
         for key in keys:
-            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key): #select only rec distr
+            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key) and not ('_' in key): #select only rec distr
                 analysis_type_key = f"{key[1:-2]}_analysis_type" # Get the corresponding analysis type for this sample
                 analysis_type = file[analysis_type_key].all_members['fTitle']
                 samples_dict[key[1:-2]] = analysis_type
     return samples_dict
 
 
-
-def load_hists(filename):
-    """Loads asimovs from PTGenerateXp output root file 
-
-    Parameters
-    ----------
-    filename : string
-        The filename of PTGenerateXp output root file
-
-    Returns
-    ------
-    ToyXp 
-        An object of ToyXp class containt all the asimovs stored in the root file
-    """
-    
-    samples_dict = get_samples_info(filename)
-    toy = ToyXp()
-    
-    with uproot.open(filename) as file:
-        for sample_title, analysis_type in samples_dict.items():
-            hist = file[f'h{sample_title}']
-            xedges = hist.axis(0).edges()
-            z = hist.values()
-            if analysis_type =='e-theta' or analysis_type =='PTheta':
-                yedges = hist.axis(1).edges()
-                toy.append(Sample([xedges, yedges], z, sample_title, analysis_type))    
-            else:
-                toy.append(Sample([xedges], z, sample_title, analysis_type))  
-        
-    return toy
-
-def load_tree(filename, sample_title, analysis_type, itoy):
-    """Loads a unbinned toy for a given sample
-
-    Parameters
-    ----------
-    filename : string
-        The filename of PTGenerateXp output root file
-    sample_title : string
-        The title of the sample. For example, 'nue1R', 'numubar1R', 'numucc1pi' etc
-    itoy : 
-        The index of the toy to be loaded.
-    Returns
-    ------
-    Tuple 
-        A tuple (x, y) where x(y) is array of values of the observable on the x(y) axis. For 1D sample y is None
-
-    """
-    with uproot.open(filename) as file:
-        input_tree = file.get("ToyXp")
-        
-        if input_tree is None:
-            print(f"'ToyXp' tree not found in file {filename}")
-            return None
-
-        if analysis_type =='e-theta' or analysis_type =='PTheta':
-            xvar_branch_name = f"{analysis_type_to_xvar[analysis_type]}_{sample_title}"
-            t_branch_name = f"t_{sample_title}"
-            data = input_tree.arrays([xvar_branch_name, t_branch_name], entry_start=itoy, entry_stop=itoy + 1)
-            xvar = data[xvar_branch_name][0]  
-            theta = data[t_branch_name][0]
-            return (np.array(xvar), np.array(theta))
-
-        xvar_branch_name = f"{analysis_type_to_xvar[analysis_type]}_{sample_title}"
-        data = input_tree.arrays([xvar_branch_name], entry_start=itoy, entry_stop=itoy + 1)
-        xvar = data[xvar_branch_name][0]            
-        return (np.array(xvar), )
-
-def load_toy(filename, itoy):
-    """Loads and bins a toy from PTGenerateXp output root file 
-
-    Parameters
-    ----------
-    filename : string
-        The filename of PTGenerateXp output root file
-    itoy : 
-        The index of toy to be loaded.
-    Returns
-    ------
-    ToyXp
-        The object of ToyXp class which stores either asimov data set and a toy data set
-
-    """
-    samples_dict = get_samples_info(filename)
-    toy = ToyXp()
-    with uproot.open(filename) as file:
-        for sample_title, analysis_type in samples_dict.items():
-            if analysis_type_to_dim[analysis_type] == '1D':
-                sample = bin_sample1D(sample_title, *load_tree(filename, sample_title, analysis_type, itoy), analysis_type)
-                toy.append(sample)
-            elif analysis_type_to_dim[analysis_type] == '2D':
-                sample = bin_sample2D(sample_title, *load_tree(filename, sample_title, analysis_type, itoy), analysis_type)
-                toy.append(sample)
-    return toy
-
-def load(filename, type, itoy=None):
+def load(filename, kind, itoy=None, breakdown=False, samples_dict=None):
     """Loads a toy/asimov from output root file of PTGenerateXp
 
     Parameters
@@ -165,14 +81,125 @@ def load(filename, type, itoy=None):
     """
     
     toy = ToyXp() #
-    if type=='asimov':
-        toy = load_hists(filename)
-    elif type=='toy':
-        toy = load_toy(filename, itoy)
-
+    if kind=='asimov':
+        toy = load_hists(filename, breakdown, samples_dict)
+    elif kind=='toy':
+        toy = load_toy(filename, itoy=itoy, tree_title='ToyXp', samples_dict=samples_dict)
+    elif kind=='data':
+        toy = load_toy(filename, itoy=0, tree_title='Data_Tree', samples_dict=samples_dict)
     return toy
 
-def bin_sample1D(title, xvar, analysis_type):
+
+def load_hists(filename, breakdown=False, samples_dict=None):
+    """Loads asimovs from PTGenerateXp output root file 
+
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
+
+    Returns
+    ------
+    ToyXp 
+        An object of ToyXp class containt all the asimovs stored in the root file
+    """
+    if samples_dict is None:
+        samples_dict = get_samples_info(filename)
+    toy = ToyXp()
+    
+    with uproot.open(filename) as file:
+        for sample_title, analysis_type in samples_dict.items():
+            hist = file[f'h{sample_title}']
+            xedges = hist.axis(0).edges()
+            z = hist.values()
+            if analysis_type =='e-theta' or analysis_type =='PTheta' or analysis_type =='p-theta':
+                yedges = hist.axis(1).edges()
+                toy.append(Sample([xedges, yedges], z, sample_title, analysis_type))    
+            else:
+                toy.append(Sample([xedges], z, sample_title, analysis_type))
+                
+        if breakdown:
+            for sample_title, analysis_type in samples_dict.items():
+                for inter in interaction_suffixes:
+                    for flavour in flavours_suffixes:
+                        hist = file[f'h{sample_title}_{inter}_{flavour}']
+                        xedges = hist.axis(0).edges()
+                        z = hist.values()
+                        if analysis_type =='e-theta' or analysis_type =='PTheta' or analysis_type =='p-theta':
+                            yedges = hist.axis(1).edges()
+                            toy.append(Sample([xedges, yedges], z, f'{sample_title}_{inter}_{flavour}', analysis_type, sample_title))    
+                        else:
+                            toy.append(Sample([xedges], z, f'{sample_title}_{inter}_{flavour}', analysis_type, sample_title))
+        
+    return toy
+
+def load_tree(filename, sample_title, tree_title, analysis_type, itoy):
+    """Loads a unbinned toy for a given sample
+
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
+    sample_title : string
+        The title of the sample. For example, 'nue1R', 'numubar1R', 'numucc1pi' etc
+    itoy : 
+        The index of the toy to be loaded.
+    Returns
+    ------
+    Tuple 
+        A tuple (x, y) where x(y) is array of values of the observable on the x(y) axis. For 1D sample y is None
+
+    """
+    with uproot.open(filename) as file:
+        input_tree = file.get(tree_title)
+        
+        if input_tree is None:
+            raise ValueError (f"'{tree_title}' tree not found in file {filename}")
+
+        if analysis_type =='e-theta' or analysis_type =='p-theta':
+            xvar_branch_name = f"{analysis_type_to_xvar[analysis_type]}_{sample_title}"
+            t_branch_name = f"t_{sample_title}"
+            data = input_tree.arrays([xvar_branch_name, t_branch_name], entry_start=itoy, entry_stop=itoy + 1)
+            xvar = data[xvar_branch_name][0]  
+            theta = data[t_branch_name][0]
+            return (np.array(xvar), np.array(theta))
+
+        xvar_branch_name = f"{analysis_type_to_xvar[analysis_type]}_{sample_title}"
+        data = input_tree.arrays([xvar_branch_name], entry_start=itoy, entry_stop=itoy + 1)
+        xvar = data[xvar_branch_name][0]            
+        return (np.array(xvar), )
+
+def load_toy(filename, itoy, tree_title, samples_dict):
+    """Loads and bins a toy from PTGenerateXp output root file 
+
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
+    itoy : 
+        The index of toy to be loaded.
+    Returns
+    ------
+    ToyXp
+        The object of ToyXp class which stores either asimov data set and a toy data set
+
+    """
+    if samples_dict is None:
+        samples_dict = get_samples_info(filename)
+    toy = ToyXp()
+    with uproot.open(filename) as file:
+        for sample_title, analysis_type in samples_dict.items():
+            if analysis_type_to_dim[analysis_type] == '1D':
+                sample = bin_sample1D(*load_tree(filename, sample_title, tree_title, analysis_type, itoy), sample_title, analysis_type)
+                toy.append(sample)
+            elif analysis_type_to_dim[analysis_type] == '2D':
+                sample = bin_sample2D(*load_tree(filename, sample_title, tree_title, analysis_type, itoy), sample_title, analysis_type)
+                toy.append(sample)
+    return toy
+
+
+
+def bin_sample1D(xvar, title=None, analysis_type=None, bin_edges=None):
     """Bins a toy in 1D histogram
 
     Parameters
@@ -188,11 +215,12 @@ def bin_sample1D(title, xvar, analysis_type):
     Sample1D
         The object of Sample1D class binning xvar array
     """
-    
-    hist = np.histogram(xvar, bins=analysis_type_xedges[analysis_type])
-    return Sample(title, [hist[1]], hist[0], analysis_type)
+    if bin_edges is None and analysis_type is not None:
+        bin_edges = analysis_type_xedges[analysis_type] ## Finish here!
+    hist = np.histogram(xvar, bins=bin_edges)
+    return Sample([hist[1]], hist[0], title, analysis_type)
 
-def bin_sample2D(title, xvar, yvar, analysis_type):
+def bin_sample2D(xvar, yvar, title=None, analysis_type=None, bin_edges=None):
     """Bins a toy in 2D histogram
 
     Parameters
@@ -210,9 +238,13 @@ def bin_sample2D(title, xvar, yvar, analysis_type):
     Sample2D
         The object of Sample2D class binning (xvar, yvar) array
     """
+    if bin_edges is None and analysis_type is not None:
+        bin_xedges = analysis_type_xedges[analysis_type]  ## Finish here!
+        bin_yedges = analysis_type_yedges[analysis_type]  
+
+    hist = np.histogram2d(xvar, yvar, bins=(bin_xedges, bin_yedges))
     
-    hist = np.histogram2d(xvar, yvar, bins=[analysis_type_xedges[analysis_type], analysis_type_yedges[analysis_type]])
-    return Sample(title, [hist[1], hist[2]], hist[0], analysis_type)
+    return Sample([hist[1], hist[2]], hist[0], title, analysis_type)
 
 
 def calculate_dchi2(sample_obs, sample_exp, perbin=False):
@@ -232,18 +264,115 @@ def calculate_dchi2(sample_obs, sample_exp, perbin=False):
     Float or numpy.array
         Value/values of -2deltalnL
     """
-    zero_mask = (sample_obs.z == 0)
+    valid_mask = (sample_obs.z > 0) & (sample_exp.z > 0)
     result = np.zeros_like(sample_obs.z, dtype=float)
-    non_zero_mask = ~zero_mask
-    result[non_zero_mask] = sample_exp.z[non_zero_mask]-sample_obs.z[non_zero_mask] - sample_obs.z[non_zero_mask]* \
-                                np.log(sample_exp.z[non_zero_mask]/sample_obs.z[non_zero_mask]) 
-    result[zero_mask] = sample_exp.z[zero_mask]
+    invalid_mask = ~valid_mask
+    result[valid_mask] = sample_exp.z[valid_mask]-sample_obs.z[valid_mask] - sample_obs.z[valid_mask]* \
+                                np.log(sample_exp.z[valid_mask]/sample_obs.z[valid_mask]) 
+    result[invalid_mask] = sample_exp.z[invalid_mask]-sample_obs.z[invalid_mask]
     if not perbin:
         result = np.sum(result)
-    return result
+    return 2*result
+
+def plot_stacked_samples(ax, samples, labels, **kwargs):
+    """
+    Plots a 1D histogram (like in ROOT).
+
+    Parameters
+    ----------
+    samples : list
+        The list of the histograms to be stacked
+    **kwargs : dict, optional
+        Additional keyword arguments to be passed to the `ax.step` function 
+        for customizing the plot (e.g., color, linewidth, linestyle).
+    """
+    # Define default styles
+    default_kwargs = {
+        'alpha': 1.0,
+        'step': 'pre'
+    }
+    default_kwargs.update(kwargs)
+    
+    colors = [
+        "#4A6FA5",  
+        "#2A9D8F",  
+        "#E9C46A",  
+        "#E76F51",  
+        "#A88FDC", 
+        "#F4A261"
+    ]
+    
+    hist_stacked_prev = copy(samples[0])
+    hist_stacked_prev.set_z(hist_stacked_prev.z*0)
+    x = hist_stacked_prev.bin_edges[0]
+    for label, sample, color in zip(labels, samples, colors):
+        hist_stacked_current = sample + hist_stacked_prev
+        ax.fill_between(x, np.insert(hist_stacked_prev.z, 0, 0), np.insert(hist_stacked_current.z, 0, 0), zorder=0, label=label, color=color, **default_kwargs)
+        hist_stacked_current.plot(ax, linewidth=0)
+        hist_stacked_prev = hist_stacked_current
+
+def project_all_samples(toy, axis, verbose=False):
+    toy_1D = ToyXp()
+    for sample in toy.samples:
+        if sample.ndim() > 1:
+            if axis == 'energy':
+                sample_proj = sample.project_to_x()
+            elif axis == 'angle':
+                sample_proj = sample.project_to_y()
+            else:
+                raise ValueError(f'Invalid axis value: {axis}. Values "energy" or "angle" are only allowed.')
+        else:
+            sample_proj = None
+        if sample.ndim() == 1 and verbose:
+            print(f'Sample {sample.title} is already 1D. Skipped')
+            sample_proj = None
+
+        if sample.ndim() == 1 and ((axis=='energy' and (analysis_type_to_energyvar[sample.analysis_type]=='Erec' or analysis_type_to_energyvar[sample.analysis_type]=='p')) or (axis=='angle' and (analysis_type_to_anglevar[sample.analysis_type]=='Theta'))):
+            sample_proj = sample
+        
+        if sample_proj:
+            toy_1D.append(sample_proj)
+        
+    return toy_1D
+        
+
+def merge_for_inter_plotting(toyxp):
+    toy_per_int_mode = ToyXp()
+    
+    for sample_title in toyxp.sample_titles:
+        sample_per_int = defaultdict(lambda: 0)
+        for inter in interaction_suffixes:
+            for flavour in flavours_suffixes:
+                title = f'{sample_title}_{inter}_{flavour}'
+                sample_per_int[int1_to_int2[inter]] =  sample_per_int[int1_to_int2[inter]] + toyxp[title]
+
+        for inter2 in interaction_suffixes_2:
+            sample_per_int[inter2].set_title(f'{sample_title}_{inter2}')
+            sample_per_int[inter2].set_sample_title(f'{sample_title}')
+            toy_per_int_mode.append(sample_per_int[inter2])
+            
+    return toy_per_int_mode
+
+def merge_for_flavour_plotting(toyxp):
+
+    toy_per_flavour = ToyXp()
+    
+    for sample_title in toyxp.sample_titles:
+        sample_per_flavour = defaultdict(lambda: 0)
+        for flavour in flavours_suffixes :
+            for inter in interaction_suffixes:
+                title = f'{sample_title}_{inter}_{flavour}'
+                sample_per_flavour[flavour] =  sample_per_flavour[flavour] + toyxp[title]
+
+        for flavour in flavours_suffixes:
+            sample_per_flavour[flavour].set_title(f'{sample_title}_{flavour}')
+            sample_per_flavour[flavour].set_sample_title(f'{sample_title}')
+            toy_per_flavour.append(sample_per_flavour[flavour])
+            
+    return toy_per_flavour
 
 
-
+        
 class Sample:
     """
     Represents a histogram sample that can handle both 1D and 2D distributions.
@@ -277,7 +406,7 @@ class Sample:
     slice(*args):
         Returns a sliced portion of the histogram based on specified binning edges.
     """
-    def __init__(self, bin_edges, z, title=None, analysis_type=None):
+    def __init__(self, bin_edges, z, title=None, analysis_type=None, sample_title=None):
         """
         Initializes a Sample class that can handle both 1D and 2D histograms.
     
@@ -296,6 +425,10 @@ class Sample:
         self.__bin_edges = bin_edges
         self.__z = np.array(z)
         self.__analysis_type = analysis_type
+        if sample_title is None:
+            sample_title = title
+        self.__sample_title = sample_title
+
 
         if len(bin_edges) != np.ndim(z):
             raise ValueError(
@@ -313,27 +446,31 @@ class Sample:
             
     #Implement useful special methods
     def __str__(self):
-        return f"Title: {self.title}; Dimension: {self.ndim()}; Shape: {self.z.shape}; Integral: {self.contsum()}"
+        return f"Title: {self.title}; Sample title: {self.sample_title}; Dimension: {self.ndim()}; Shape: {self.z.shape}; Analysis type: {self.analysis_type} Integral: {self.contsum()}"
     
-    def __add__(self, other):
-        if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
-            return Sample(self.bin_edges, self.z + other.z)
+    def __add__(self, other): 
+        if isinstance(other, Sample) and all(all(self.bin_edges[i] == other.bin_edges[i]) for i in range(self.ndim())):
+            return Sample(self.bin_edges, self.z + other.z, self.title, self.analysis_type, self.sample_title)
         elif isinstance(other,(int, float)):
-            return Sample(self.bin_edges, self.z + other, self.title, self.analysis_type)
+            return Sample(self.bin_edges, self.z + other, self.title, self.analysis_type, self.sample_title)
         raise ValueError("Incompatible operand type or size")
         
     def __sub__(self, other):
         if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
             return Sample(self.bin_edges, self.z - other.z)
         elif isinstance(other,(int, float)):
-            return Sample(self.bin_edges, self.z - other, self.title, self.analysis_type)
+            return Sample(self.bin_edges, self.z - other, self.title, self.analysis_type, self.sample_title)
         raise ValueError("Incompatible operand type or size")
+        
+    def __radd__(self, other):
+        if isinstance(other, (int, float)):
+            return self.__add__(other)
         
     def __mul__(self, other):
         if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
             return Sample(self.bin_edges, self.z * other.z)
         elif isinstance(other,(int, float)):
-            return Sample(self.bin_edges, self.z * other, self.title, self.analysis_type)
+            return Sample(self.bin_edges, self.z * other, self.title, self.analysis_type, self.sample_title)
         raise ValueError("Incompatible operand type or size")
             
     def __neg__(self):
@@ -353,6 +490,10 @@ class Sample:
     @property
     def title(self):
         return self.__title
+    
+    @property
+    def sample_title(self):
+        return self.__sample_title
 
     @property
     def bin_edges(self):
@@ -366,6 +507,22 @@ class Sample:
     def analysis_type(self):
         return self.__analysis_type
     
+    @property
+    def inter_mode(self):
+        return self.__inter_mode
+    
+    @property
+    def flavour(self):
+        return self.__flavour    
+    
+    #Set setters
+    def set_title(self, title):
+        self.__title = title
+    def set_sample_title(self, sample_title):
+        self.__sample_title = sample_title
+    def set_z(self, z):
+        self.__z = z
+    
     #Set methods
     def ndim(self):
         return len(self.__bin_edges)
@@ -373,7 +530,7 @@ class Sample:
     def contsum(self):
         return np.sum(self.__z)
 
-    def plot(self, ax, wtag=False, **kwargs):
+    def plot(self, ax, wtag=False, kind='hist', **kwargs):
         """
         Plots the distrubution of the Sample object.
 
@@ -385,9 +542,9 @@ class Sample:
             Set True (False) to (not) show the tag 
         """
         if self.ndim() == 1:
-            self._plot_1d(ax, wtag, **kwargs)
+            self._plot_1d(ax, wtag, kind, **kwargs)
         elif self.ndim() == 2:
-            self._plot_2d(ax, wtag, **kwargs)
+            self._plot_2d(ax, wtag, kind, **kwargs)
         else:
             raise ValueError("Plotting is only supported for 1D and 2D samples.")     
 
@@ -429,11 +586,15 @@ class Sample:
             raise ValueError("Rebinning is only supported for 1D and 2D samples.")
             
     def project_to_x(self):
-        return self.rebin([self.bin_edges[0], [self.bin_edges[1][0], self.bin_edges[1][-1]]])
+        if self.ndim()>1:
+            return self.rebin([self.bin_edges[0], [self.bin_edges[1][0], self.bin_edges[1][-1]]])
+        raise ValueError('Trying to project 1D')
     
     def project_to_y(self):
-        return self.rebin([[self.bin_edges[0][0], self.bin_edges[0][-1]], self.bin_edges[1]])
-
+        if self.ndim()>1:
+            return self.rebin([[self.bin_edges[0][0], self.bin_edges[0][-1]], self.bin_edges[1]])
+        raise ValueError('Trying to project 1D')
+    
     def slice(self, *args):
         """
         Returns a sliced portion of the distribution for the `Sample` object, 
@@ -491,11 +652,15 @@ class Sample:
             new_z = self.z[start_x:stop_x, start_y:stop_y]
             return Sample(title=self.title, bin_edges=[new_xedges, new_yedges], z=new_z, analysis_type=self.analysis_type)
 
-    def _plot_1d(self, ax, wtag=False, **kwargs):
-        plot_histogram(ax, self.bin_edges[0], self.z, **kwargs)
+    def _plot_1d(self, ax, wtag, kind, **kwargs):
+        
+        if kind == 'hist':
+            plot_histogram(ax, self.bin_edges[0], self.z, **kwargs)
+        else:
+            plot_data(ax, self.bin_edges[0], self.z)
 
         if self.title is not None:
-            ax.set_title(sample_to_title[self.title], loc='left')
+            ax.set_title(sample_to_title[self.sample_title], loc='left')
         if self.analysis_type is not None:
             _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
             ax.set_xlim(0.001, analysis_type_to_xmax[self.analysis_type])
@@ -503,14 +668,15 @@ class Sample:
         if wtag:
             ax.set_title(tag, loc='right')
 
-        ax.set_ylim(0.)
+        ax.autoscale(axis='y', tight=False)
+        ax.set_ylim(bottom=0)
         ax.set_ylabel('Number of events')
 
-    def _plot_2d(self, ax, wtag=False, **kwargs):
+    def _plot_2d(self, ax, wtag, kind, **kwargs):
         mesh = ax.pcolormesh(self.bin_edges[0], self.bin_edges[1], self.z.transpose(), zorder=0, cmap=kwargs.pop('cmap', rev_afmhot),  **kwargs)
         cbar = plt.colorbar(mesh, ax=ax)    
         if self.title is not None:
-            ax.set_title(sample_to_title[self.title], loc='left', fontsize=20)
+            ax.set_title(sample_to_title[self.sample_title], loc='left', fontsize=20)
         if self.analysis_type is not None:
             _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
             ax.set_xlim(0.001, analysis_type_to_xmax[self.analysis_type])
@@ -526,8 +692,8 @@ class Sample:
         if len(new_bin_edges) != 1:
             raise ValueError(f"The dimension of new edges ({len(new_bin_edges)}) should be equal to 1 as it is 1D sample")
             
-        new_xedges = new_bin_edges[0]
-        old_xedges = self.bin_edges[0]
+        new_xedges = np.round(new_bin_edges[0], 6)
+        old_xedges = np.round(self.bin_edges[0], 6)
         
         if all(new_xedge in old_xedges for new_xedge in new_xedges):
             i = 0
@@ -536,7 +702,8 @@ class Sample:
                 if old_xedges[k] >= new_xedges[i+1]:
                     i += 1
                 new_z[i] += self.z[k]
-            return Sample([new_xedges], new_z, self.title, self.analysis_type)
+            print(self.analysis_type)
+            return Sample([new_xedges], new_z, self.title, self.analysis_type, self.sample_title)
         else:
             raise ValueError("New edges should be fully contained in old edges")
 
@@ -562,21 +729,21 @@ class Sample:
                     new_z[i][j] += self.z[k][m]
                     
             if len(new_yedges) > 2 and len(new_xedges) > 2:
-                return Sample( [new_xedges, new_yedges], new_z, self.title, self.analysis_type)
+                return Sample( [new_xedges, new_yedges], new_z, self.title, self.analysis_type, self.sample_title)
             if len(new_yedges) == 2:
                 if self.analysis_type=='e-theta':
                     analysis_type = 'Erec'
-                elif self.analysis_type=='PTheta':
+                elif self.analysis_type=='PTheta' or self.analysis_type=='p-theta':
                     analysis_type = 'P'
                 else:
                     analysis_type = None
-                return Sample( [new_xedges], new_z.transpose()[0], self.title, analysis_type)
+                return Sample( [new_xedges], new_z.transpose()[0], self.title, analysis_type, self.sample_title)
             if len(new_xedges) == 2:
-                if self.analysis_type=='e-theta' or self.analysis_type=='PTheta':
+                if self.analysis_type=='e-theta' or self.analysis_type=='PTheta' or self.analysis_type=='p-theta':
                     analysis_type = 'Theta'
                 else:
                     analysis_type = None
-                return Sample( [new_yedges], new_z[0], self.title, analysis_type)       
+                return Sample( [new_yedges], new_z[0], self.title, analysis_type, self.sample_title)       
         else:
             raise ValueError("New edges should be contained fully in old edges")
 
@@ -622,7 +789,8 @@ class ToyXp:
                 return self.samples[index]
         raise ValueError(f"Sample with title {key} not found")
 
-    def get_titles(self):
+    @property
+    def titles(self):
         """
         Returns the titles of all samples in the collection.
 
@@ -635,6 +803,21 @@ class ToyXp:
         for sample in self.samples:
             titles.append(sample.title)
         return titles
+    
+    @property
+    def sample_titles(self):
+        """
+        Returns the titles of all samples in the collection.
+
+        Returns
+        -------
+        list
+            A list of titles for all `Sample` objects in the collection.
+        """
+        sample_titles = []
+        for sample in self.samples:
+            sample_titles.append(sample.sample_title)
+        return list(set(sample_titles))
 
     def append(self, sample):
         """
@@ -645,8 +828,18 @@ class ToyXp:
         sample : Sample
             The `Sample` object to add to the collection.
         """
-        self.samples.append(sample)
+        if isinstance(sample, Sample):
+            self.samples.append(sample)
+        else:
+            raise ValueError('The element of ToyXp should be Sample object')
 
+    def filter_by_sample_title(self, sample_title):
+        sample_per_int_mode = ToyXp()
+        for sample in self.samples:
+            if sample.sample_title == sample_title:
+                sample_per_int_mode.append(sample)
+        return sample_per_int_mode
+ 
 
 
             

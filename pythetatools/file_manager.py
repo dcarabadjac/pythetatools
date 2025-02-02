@@ -6,6 +6,8 @@ import subprocess
 import os
 import uproot
 import subprocess
+import scipy.stats as stats
+
 
 def check_remote_path(remote_path, login, domain):
     # Check if the remote path is a file or directory using SSH
@@ -57,10 +59,11 @@ def download(input_path, login, domain, destination, overwrite=False):
 
     # Extract the remote name
     basename = os.path.basename(input_path)
+    print(basename)
+
 
     # Local full path for the file or directory to be downloaded
     local_path = os.path.join(destination, basename)
-
     if not overwrite:
         # Check if a file or directory with the same name already exists in the destination
         if os.path.exists(local_path):

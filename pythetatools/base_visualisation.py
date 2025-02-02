@@ -4,6 +4,8 @@ import matplotlib.transforms as transforms
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.transforms import Bbox
+import scipy.stats as stats
+
 
 
 RED = "\033[31m"
@@ -56,6 +58,21 @@ t2k_style = {
     'font.sans-serif': ['Arial']
 }
 
+def poisson_error_bars(Nobs, alpha, theta):
+    yerr_low = np.zeros_like(Nobs, dtype=float)
+    yerr_high = np.zeros_like(Nobs, dtype=float)
+
+    for i, n in enumerate(Nobs):
+        if n == 0:
+            yerr_low[i] = 0
+        else:
+            yerr_low[i] = n - stats.gamma.ppf(alpha / 2, n, scale=theta)
+        
+        yerr_high[i] = stats.gamma.ppf(1 - alpha / 2, n + 1, scale=theta) - n
+
+    return yerr_low, yerr_high
+
+
 def plot_histogram(ax, xedges, z, **kwargs):
     """
     Plots a 1D histogram (like in ROOT).
@@ -83,6 +100,17 @@ def plot_histogram(ax, xedges, z, **kwargs):
     heights = np.insert(z, 0, 0)
     heights = np.append(heights, [0])
     ax.step(x, heights, **kwargs)
+
+
+
+
+def plot_data(ax, xedges, z):
+    x_centers = (xedges[1:] + xedges[:-1])/2
+    bin_widths = (xedges[1:] - xedges[:-1])/2
+    alpha = 1 - 0.6827
+    
+    yerr_low, yerr_high = poisson_error_bars(z, alpha, 1)
+    ax.errorbar(x_centers, z, yerr=(yerr_low, yerr_high), xerr=bin_widths, fmt='o', label='Data', color='black', markersize=5, capsize=2, elinewidth=2, capthick=1)
 
 
 def show_minor_ticks(ax, axis='both'):
