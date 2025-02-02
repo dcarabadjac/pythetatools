@@ -6,8 +6,6 @@ import subprocess
 import os
 import uproot
 import subprocess
-import scipy.stats as stats
-
 
 def check_remote_path(remote_path, login, domain):
     # Check if the remote path is a file or directory using SSH

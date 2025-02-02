@@ -1,20 +1,21 @@
 .. pythetatools documentation master file, created by
-   sphinx-quickstart on Fri Oct 18 00:35:36 2024.
+   sphinx-quickstart on Sun Feb  2 19:42:57 2025.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to pythetatools's documentation!
-========================================
+pythetatools documentation
+==========================
+
+pythetatools - the python package providing post-fit analysis and drawing tools for P-theta analysis outputs.
+
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Modules:
 
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   pythetatools.base_analysis
+   pythetatools.global_names
+   pythetatools.base_visualisation
+   pythetatools.likelihood
+   pythetatools.toyxp
+   pythetatools.file_manager

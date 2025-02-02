@@ -1,3 +1,7 @@
+"""
+Defines Loglikelihood classes and related functions
+"""
+
 from array import array
 import uproot
 import numpy as np
