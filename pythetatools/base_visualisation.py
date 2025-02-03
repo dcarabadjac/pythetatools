@@ -58,7 +58,7 @@ t2k_style = {
     'font.sans-serif': ['Arial']
 }
 
-def poisson_error_bars(Nobs, alpha, theta):
+def poisson_error_bars(Nobs, alpha):
     yerr_low = np.zeros_like(Nobs, dtype=float)
     yerr_high = np.zeros_like(Nobs, dtype=float)
 
@@ -66,9 +66,9 @@ def poisson_error_bars(Nobs, alpha, theta):
         if n == 0:
             yerr_low[i] = 0
         else:
-            yerr_low[i] = n - stats.gamma.ppf(alpha / 2, n, scale=theta)
+            yerr_low[i] = n - stats.gamma.ppf(alpha / 2, n, scale=1)
         
-        yerr_high[i] = stats.gamma.ppf(1 - alpha / 2, n + 1, scale=theta) - n
+        yerr_high[i] = stats.gamma.ppf(1 - alpha / 2, n + 1, scale=1) - n
 
     return yerr_low, yerr_high
 
@@ -103,14 +103,15 @@ def plot_histogram(ax, xedges, z, **kwargs):
 
 
 
-
-def plot_data(ax, xedges, z):
+def plot_data(ax, xedges, z, yerr):
     x_centers = (xedges[1:] + xedges[:-1])/2
     bin_widths = (xedges[1:] - xedges[:-1])/2
-    alpha = 1 - 0.6827
-    
-    yerr_low, yerr_high = poisson_error_bars(z, alpha, 1)
-    ax.errorbar(x_centers, z, yerr=(yerr_low, yerr_high), xerr=bin_widths, fmt='o', label='Data', color='black', markersize=5, capsize=2, elinewidth=2, capthick=1)
+
+    if yerr is None:
+        alpha = 1 - 0.6827
+        yerr_low, yerr_high = poisson_error_bars(z, alpha)
+        yerr = (yerr_low, yerr_high)
+    ax.errorbar(x_centers, z, yerr=yerr, xerr=bin_widths, fmt='o', label='Data', color='black', markersize=5, capsize=2, elinewidth=2, capthick=1)
 
 
 def show_minor_ticks(ax, axis='both'):

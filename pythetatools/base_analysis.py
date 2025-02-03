@@ -1,6 +1,13 @@
 import numpy as np
 from scipy.stats import chi2
 
+def divide_arrays(array_nom, array_denom):
+    where_zeros = array_denom==0
+    ratio = np.zeros_like(array_nom, dtype=float)
+    ratio[where_zeros] = 0
+    ratio[~where_zeros] = array_nom[~where_zeros] / array_denom[~where_zeros]
+    return ratio
+
 
 def find_roots(x, y, c):
     """

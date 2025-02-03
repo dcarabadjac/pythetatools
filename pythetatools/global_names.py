@@ -10,7 +10,7 @@ inputs_dir = os.path.join(os.path.dirname(library_dir), 'inputs')
 outputs_dir = os.path.join(os.path.dirname(library_dir), 'outputs')
 
 erec_egdes = [0.05*i for i in range(61)] + [3.25, 3.50, 3.75, 4.00, 4.50, 5.00, 5.50, 6.00, 7.00, 8.00, 9.00, 10.00, 30.00]
-p_edges =  np.arange(0, 1300, 100)
+p_edges =  np.arange(0, 1600, 100)
 theta_numu_edges = [20*i for i in range(6)] + [180]
 theta_nue_edges = [10*i for i in range(15)] + [180]
 

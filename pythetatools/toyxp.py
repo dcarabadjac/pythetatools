@@ -7,6 +7,7 @@ import os
 import uproot
 from .file_manager import download
 from .base_visualisation import *
+from .base_analysis import divide_arrays
 from copy import copy
 from collections import defaultdict
 
@@ -477,11 +478,13 @@ class Sample:
         return Sample(self.bin_edges, -self.z, self.title, self.analysis_type)
 
     def __truediv__(self, other):
-        if isinstance(other, Sample) and self.bin_edges == other.bin_edges:
-            where_zeros = other.z==0
-            ratio = np.zeros_like(self.z)
-            ratio[where_zeros] = 0
-            ratio[~where_zeros] = self.z[~where_zeros] / other.z[~where_zeros]
+        
+        ifbinedgesmatch = np.allclose(self.bin_edges[0], other.bin_edges[0])
+        if self.ndim() == 2:
+            isbinedgesmatch = isbinedgesmatch and np.array_equal(self.bin_edges[1], other.bin_edges[1])
+        
+        if isinstance(other, Sample) and ifbinedgesmatch:
+            ratio = divide_arrays(self.z, other.z)
             return Sample(self.bin_edges, ratio, self.title, self.analysis_type)
         raise ValueError("Incompatible operand type or size")
         
@@ -530,7 +533,7 @@ class Sample:
     def contsum(self):
         return np.sum(self.__z)
 
-    def plot(self, ax, wtag=False, kind='hist', **kwargs):
+    def plot(self, ax, wtitle=True, wtag=False, kind='hist', yerr=None, **kwargs):
         """
         Plots the distrubution of the Sample object.
 
@@ -542,9 +545,9 @@ class Sample:
             Set True (False) to (not) show the tag 
         """
         if self.ndim() == 1:
-            self._plot_1d(ax, wtag, kind, **kwargs)
+            self._plot_1d(ax, wtitle, wtag, kind, yerr, **kwargs)
         elif self.ndim() == 2:
-            self._plot_2d(ax, wtag, kind, **kwargs)
+            self._plot_2d(ax, wtitle, wtag, kind, **kwargs)
         else:
             raise ValueError("Plotting is only supported for 1D and 2D samples.")     
 
@@ -652,14 +655,14 @@ class Sample:
             new_z = self.z[start_x:stop_x, start_y:stop_y]
             return Sample(title=self.title, bin_edges=[new_xedges, new_yedges], z=new_z, analysis_type=self.analysis_type)
 
-    def _plot_1d(self, ax, wtag, kind, **kwargs):
+    def _plot_1d(self, ax, wtitle, wtag, kind, yerr, **kwargs):
         
         if kind == 'hist':
             plot_histogram(ax, self.bin_edges[0], self.z, **kwargs)
         else:
-            plot_data(ax, self.bin_edges[0], self.z)
+            plot_data(ax, self.bin_edges[0], self.z, yerr)
 
-        if self.title is not None:
+        if self.title is not None and wtitle:
             ax.set_title(sample_to_title[self.sample_title], loc='left')
         if self.analysis_type is not None:
             _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
@@ -667,12 +670,12 @@ class Sample:
             ax.set_xlabel(analysis_type_to_xlabel[self.analysis_type])
         if wtag:
             ax.set_title(tag, loc='right')
-
+    
         ax.autoscale(axis='y', tight=False)
         ax.set_ylim(bottom=0)
         ax.set_ylabel('Number of events')
 
-    def _plot_2d(self, ax, wtag, kind, **kwargs):
+    def _plot_2d(self, ax, wtitle, wtag, kind, **kwargs):
         mesh = ax.pcolormesh(self.bin_edges[0], self.bin_edges[1], self.z.transpose(), zorder=0, cmap=kwargs.pop('cmap', rev_afmhot),  **kwargs)
         cbar = plt.colorbar(mesh, ax=ax)    
         if self.title is not None:
