@@ -57,7 +57,7 @@ def get_samples_info(filename):
     return samples_dict
 
 
-def load(filename, kind, itoy=None, breakdown=False, samples_dict=None):
+def load(filename, kind, itoy=None, breakdown=False, samples_dict=None, tobin=True):
     """Loads a toy/asimov from output root file of PTGenerateXp
 
     Parameters
@@ -85,9 +85,9 @@ def load(filename, kind, itoy=None, breakdown=False, samples_dict=None):
     if kind=='asimov':
         toy = load_hists(filename, breakdown, samples_dict)
     elif kind=='toy':
-        toy = load_toy(filename, itoy=itoy, tree_title='ToyXp', samples_dict=samples_dict)
+        toy = load_toy(filename, itoy=itoy, tree_title='ToyXp', samples_dict=samples_dict, tobin=tobin)
     elif kind=='data':
-        toy = load_toy(filename, itoy=0, tree_title='Data_Tree', samples_dict=samples_dict)
+        toy = load_toy(filename, itoy=0, tree_title='Data_Tree', samples_dict=samples_dict, tobin=tobin)
     return toy
 
 
@@ -170,7 +170,7 @@ def load_tree(filename, sample_title, tree_title, analysis_type, itoy):
         xvar = data[xvar_branch_name][0]            
         return (np.array(xvar), )
 
-def load_toy(filename, itoy, tree_title, samples_dict):
+def load_toy(filename, itoy, tree_title, samples_dict, tobin=True):
     """Loads and bins a toy from PTGenerateXp output root file 
 
     Parameters
@@ -185,19 +185,36 @@ def load_toy(filename, itoy, tree_title, samples_dict):
         The object of ToyXp class which stores either asimov data set and a toy data set
 
     """
-    if samples_dict is None:
-        samples_dict = get_samples_info(filename)
-    toy = ToyXp()
-    with uproot.open(filename) as file:
-        for sample_title, analysis_type in samples_dict.items():
-            if analysis_type_to_dim[analysis_type] == '1D':
-                sample = bin_sample1D(*load_tree(filename, sample_title, tree_title, analysis_type, itoy), sample_title, analysis_type)
+    if tobin:
+        if samples_dict is None:
+            samples_dict = get_samples_info(filename)
+        toy = ToyXp()
+        with uproot.open(filename) as file:
+            for sample_title, analysis_type in samples_dict.items():
+                if analysis_type_to_dim[analysis_type] == '1D':
+                    sample = bin_sample1D(*load_tree(filename, sample_title, tree_title, 
+                                                     analysis_type, itoy), sample_title, analysis_type)
+                    toy.append(sample)
+                elif analysis_type_to_dim[analysis_type] == '2D':
+                    sample = bin_sample2D(*load_tree(filename, sample_title, tree_title,
+                                                     analysis_type, itoy), sample_title, analysis_type)
+                    toy.append(sample)
+        return toy
+    else:
+        if samples_dict is None:
+            samples_dict = get_samples_info(filename)
+        toy = ToyXp()
+        with uproot.open(filename) as file:
+            for sample_title, analysis_type in samples_dict.items():
+                if analysis_type_to_dim[analysis_type] == '1D':
+                    sample = UnbinnedSample(*load_tree(filename, sample_title, tree_title, 
+                                                     analysis_type, itoy), title=sample_title, analysis_type=analysis_type)
+                elif analysis_type_to_dim[analysis_type] == '2D':
+                    sample = UnbinnedSample(*load_tree(filename, sample_title, tree_title,
+                                                     analysis_type, itoy), title=sample_title, analysis_type=analysis_type)
+                print(sample_title)
                 toy.append(sample)
-            elif analysis_type_to_dim[analysis_type] == '2D':
-                sample = bin_sample2D(*load_tree(filename, sample_title, tree_title, analysis_type, itoy), sample_title, analysis_type)
-                toy.append(sample)
-    return toy
-
+        return toy
 
 
 def bin_sample1D(xvar, title=None, analysis_type=None, bin_edges=None):
@@ -373,6 +390,94 @@ def merge_for_flavour_plotting(toyxp):
     return toy_per_flavour
 
 
+class UnbinnedSample:
+    def __init__(self, xvar, yvar=None, title=None, analysis_type=None):
+        """
+        Initializes a Sample class that can handle both 1D and 2D histograms.
+    
+        Parameters:
+        ----------
+        title : string
+            Title of the sample
+        bin_edges: List
+            Contains bin edges, e.g., [xedges] for 1D or [xedges, yedges] for 2D
+        z: array-like
+            Contains histogram values, 1D or 2D depending on the number of dimensions
+        analysis_type : string
+            The type of the binning
+        """
+        self.__title = title
+        self.__xvar = xvar
+        self.__yvar = yvar
+        self.__analysis_type = analysis_type
+        
+    #Implement useful special methods
+    def __str__(self):
+        return f"Title: {self.title}; Dimension: {self.ndim()}; Analysis type: {self.analysis_type}"
+    
+    #Set getters
+    @property
+    def title(self):
+        return self.__title
+    @property
+    def xvar(self):
+        return self.__xvar
+    @property
+    def yvar(self):
+        return self.__yvar
+    @property
+    def analysis_type(self):
+        return self.__analysis_type
+    
+        
+    #Set methods
+    def ndim(self):
+        if self.__yvar is not None:
+            return 2
+        return 1
+        
+    def plot(self, ax, wtitle=True, wtag=False, **kwargs):
+        """
+        Plots the distrubution of the Sample object.
+
+        Parameters:
+        ----------
+        ax : string
+            Title of the sample
+        wtag : bool
+            Set True (False) to (not) show the tag 
+        """
+        if self.ndim() == 1:
+            self._plot_1d(ax, wtitle, wtag, **kwargs)
+        elif self.ndim() == 2:
+            self._plot_2d(ax, wtitle, wtag, **kwargs)
+        else:
+            raise ValueError("Plotting is only supported for 1D and 2D samples.")    
+    
+    def _plot_2d(self, ax, wtitle, wtag, **kwargs):
+        ax.scatter(self.__xvar, self.__yvar, facecolors='white', edgecolors='black', s=20,  **kwargs)
+        
+        if self.title is not None and wtitle:
+            ax.set_title(sample_to_title[self.title], loc='left')
+        if self.analysis_type is not None:
+            _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
+            ax.set_xlim(0.001, analysis_type_to_xmax[self.analysis_type])
+            ax.set_xlabel(analysis_type_to_xlabel[self.analysis_type])
+        if wtag:
+            ax.set_title(tag, loc='right')
+    
+        _=ax.set_yticks([30*i for i in range(7)])                          
+        ax.set_ylim(0, 180)
+        ax.set_ylabel("Angle [degrees]")
+        if wtag:
+            ax.set_title(tag, loc='right', fontsize=20)
+            
+    def _plot_1d(self, ax, wtitle, wtag, **kwargs):
+        """
+        As drawing unbinned 1D does not make any sence binned distribution will be plotted 
+        """
+        binned_sample = bin_sample1D(self.__xvar, title=self.__title, analysis_type=self.__analysis_type,)
+        binned_sample.plot(ax, wtitle, wtag, kind='data')
         
 class Sample:
     """
@@ -434,16 +539,15 @@ class Sample:
         if len(bin_edges) != np.ndim(z):
             raise ValueError(
                 f"Dimension mismatch: bin_edges has {len(bin_edges)} dimensions, "
-                f"but z has {np.ndim(z)} dimensions."
-            )
+                f"but z has {np.ndim(z)} dimensions.")
+            
         expected_shape = tuple(len(edges) - 1 for edges in bin_edges)
         bin_egdes_shape = tuple(len(edges) for edges in bin_edges)
 
         if expected_shape != self.__z.shape:
             raise ValueError(
                 f"Shape mismatch: bin_edges implies shape {bin_egdes_shape}, "
-                f"but z has shape {self.__z.shape}. Numer of bin edges = number of bins + 1"
-            )
+                f"but z has shape {self.__z.shape}. Numer of bin edges = number of bins + 1")
             
     #Implement useful special methods
     def __str__(self):
@@ -676,8 +780,7 @@ class Sample:
         ax.set_ylabel('Number of events')
 
     def _plot_2d(self, ax, wtitle, wtag, kind, **kwargs):
-        mesh = ax.pcolormesh(self.bin_edges[0], self.bin_edges[1], self.z.transpose(), zorder=0, cmap=kwargs.pop('cmap', rev_afmhot),  **kwargs)
-        cbar = plt.colorbar(mesh, ax=ax)    
+
         if self.title is not None:
             ax.set_title(sample_to_title[self.sample_title], loc='left', fontsize=20)
         if self.analysis_type is not None:
@@ -690,6 +793,17 @@ class Sample:
         ax.set_ylabel("Angle [degrees]")
         if wtag:
             ax.set_title(tag, loc='right', fontsize=20)
+            
+        xlim, ylim = ax.get_xlim(), ax.get_ylim()
+        x_mask = (self.bin_edges[0][:-1] >= xlim[0]) & (self.bin_edges[0][1:] <= xlim[1])
+        y_mask = (self.bin_edges[1][:-1] >= ylim[0]) & (self.bin_edges[1][1:] <= ylim[1])
+        displayed_z = self.z[np.ix_(x_mask, y_mask)]
+        vmax = displayed_z.max() if displayed_z.size > 0 else None
+        mesh = ax.pcolormesh(self.bin_edges[0], self.bin_edges[1], self.z.transpose(), zorder=0, 
+                             cmap=kwargs.pop('cmap', rev_afmhot), vmax=vmax,  **kwargs)
+        cbar = plt.colorbar(mesh, ax=ax)
+
+
     
     def _rebin_1d(self, new_bin_edges):
         if len(new_bin_edges) != 1:
@@ -831,7 +945,7 @@ class ToyXp:
         sample : Sample
             The `Sample` object to add to the collection.
         """
-        if isinstance(sample, Sample):
+        if isinstance(sample, Sample) or isinstance(sample, UnbinnedSample):
             self.samples.append(sample)
         else:
             raise ValueError('The element of ToyXp should be Sample object')
