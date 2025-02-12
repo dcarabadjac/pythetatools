@@ -10,20 +10,28 @@ from .base_visualisation import *
 from .base_analysis import divide_arrays
 from copy import copy
 from collections import defaultdict
+import matplotlib.patches as mpatches
 
 
 
 def download_toyxp(input_path, login=my_login, domain=my_domain, overwrite=False):
-    """Dowloads the PTGenerateXp output root file 
+    """Dowloads the PTGenerateXP output root file from CC 
+    
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXP output root file
+    """
+    download(input_path, login=login, domain=domain, destination=os.path.join(inputs_dir, 'ToyXp'), overwrite=overwrite)
+
+def get_sample_titles(filename):
+    """Provides the sample titles from PTGenerateXP output root file
     
     Parameters
     ----------
     filename : string
         The filename of PTGenerateXp output root file
     """
-    download(input_path, login=login, domain=domain, destination=os.path.join(inputs_dir, 'ToyXp'), overwrite=overwrite)
-
-def get_sample_titles(filename):
     sample_titles = []
     
     with uproot.open(filename) as file:
@@ -780,7 +788,8 @@ class Sample:
         ax.set_ylabel('Number of events')
 
     def _plot_2d(self, ax, wtitle, wtag, kind, **kwargs):
-
+        
+        label = kwargs.pop('label', None)
         if self.title is not None:
             ax.set_title(sample_to_title[self.sample_title], loc='left', fontsize=20)
         if self.analysis_type is not None:
@@ -790,7 +799,7 @@ class Sample:
 
         _=ax.set_yticks([30*i for i in range(7)])                          
         ax.set_ylim(0, 180)
-        ax.set_ylabel("Angle [degrees]")
+        ax.set_ylabel("Angle, [degrees]")
         if wtag:
             ax.set_title(tag, loc='right', fontsize=20)
             
@@ -802,8 +811,11 @@ class Sample:
         mesh = ax.pcolormesh(self.bin_edges[0], self.bin_edges[1], self.z.transpose(), zorder=0, 
                              cmap=kwargs.pop('cmap', rev_afmhot), vmax=vmax,  **kwargs)
         cbar = plt.colorbar(mesh, ax=ax)
-
-
+        
+        #ax.pcolormesh does not support labels. Dummy patches are introduced instead
+        if label:
+            rectangle = mpatches.Rectangle((100.1, 0.1), 0.3, 0.2, linewidth=1, edgecolor=None, facecolor='orange', label=label)
+            ax.add_patch(rectangle)
     
     def _rebin_1d(self, new_bin_edges):
         if len(new_bin_edges) != 1:
