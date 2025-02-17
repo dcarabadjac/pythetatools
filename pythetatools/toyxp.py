@@ -556,7 +556,7 @@ class Sample:
             raise ValueError(
                 f"Shape mismatch: bin_edges implies shape {bin_egdes_shape}, "
                 f"but z has shape {self.__z.shape}. Numer of bin edges = number of bins + 1")
-            
+    
     #Implement useful special methods
     def __str__(self):
         return f"Title: {self.title}; Sample title: {self.sample_title}; Dimension: {self.ndim()}; Shape: {self.z.shape}; Analysis type: {self.analysis_type} Integral: {self.contsum()}"
@@ -569,8 +569,11 @@ class Sample:
         raise ValueError("Incompatible operand type or size")
         
     def __sub__(self, other):
-        if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
-            return Sample(self.bin_edges, self.z - other.z)
+        
+        ifbinedgesmatch = self._check_bin_egdes_matching(other)
+
+        if (isinstance(other, Sample) and ifbinedgesmatch):
+            return Sample(self.bin_edges, self.z - other.z, self.title, self.analysis_type, self.sample_title)
         elif isinstance(other,(int, float)):
             return Sample(self.bin_edges, self.z - other, self.title, self.analysis_type, self.sample_title)
         raise ValueError("Incompatible operand type or size")
@@ -591,16 +594,15 @@ class Sample:
 
     def __truediv__(self, other):
         
-        ifbinedgesmatch = np.allclose(self.bin_edges[0], other.bin_edges[0])
-        if self.ndim() == 2:
-            isbinedgesmatch = isbinedgesmatch and np.array_equal(self.bin_edges[1], other.bin_edges[1])
+        ifbinedgesmatch = self._check_bin_egdes_matching(other)
+        
         
         if isinstance(other, Sample) and ifbinedgesmatch:
             ratio = divide_arrays(self.z, other.z)
-            return Sample(self.bin_edges, ratio, self.title, self.analysis_type)
+            return Sample(self.bin_edges, ratio, self.title, self.analysis_type, self.sample_title)
         raise ValueError("Incompatible operand type or size")
         
-
+    
     #Set getters
     @property
     def title(self):
@@ -875,6 +877,13 @@ class Sample:
                 return Sample( [new_yedges], new_z[0], self.title, analysis_type, self.sample_title)       
         else:
             raise ValueError("New edges should be contained fully in old edges")
+            
+    def _check_bin_egdes_matching(self, other):
+
+        ifbinedgesmatch = np.allclose(self.bin_edges[0], other.bin_edges[0])
+        if self.ndim() == 2:
+            isbinedgesmatch = isbinedgesmatch and np.array_equal(self.bin_edges[1], other.bin_edges[1])
+        return ifbinedgesmatch
 
 class ToyXp:
     """

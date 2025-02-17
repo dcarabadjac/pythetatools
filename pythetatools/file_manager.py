@@ -6,6 +6,7 @@ import subprocess
 import os
 import uproot
 import subprocess
+from .global_names import my_login, my_domain
 
 def check_remote_path(remote_path, login, domain):
     # Check if the remote path is a file or directory using SSH
@@ -34,19 +35,24 @@ def create_destination_folder(destination):
         print(f"Destination folder already exists: {folder_path}")
 
 
-def download(input_path, login, domain, destination, overwrite=False):
-    """Dowloads a file or directory from computing center's server
+import os
+import subprocess
+
+def download(input_path, destination, login=my_login, domain=my_domain, overwrite=False):
+    """Downloads a file or directory from the computing center's server with progress indication.
     
     Parameters
     ----------
     input_path : string
-        Path on the server to the inputs
+        Path on the server to the input file or directory.
     login : string
-        Login of the account where the inputs are stored
+        Login of the account where the inputs are stored.
     domain : string
-        Domain of the computing center
+        Domain of the computing center.
     destination : string
-        Output directory for the downloaded inputs
+        Output directory for the downloaded inputs.
+    overwrite : bool, optional
+        Whether to overwrite existing files, default is False.
     """
     # Check if the remote path is a file or directory
     remote_type = check_remote_path(input_path, login, domain)
@@ -57,32 +63,25 @@ def download(input_path, login, domain, destination, overwrite=False):
 
     # Extract the remote name
     basename = os.path.basename(input_path)
-    print(basename)
-
-
-    # Local full path for the file or directory to be downloaded
     local_path = os.path.join(destination, basename)
-    if not overwrite:
-        # Check if a file or directory with the same name already exists in the destination
-        if os.path.exists(local_path):
-            print(f"{'File' if os.path.isfile(local_path) else 'Directory'} already exists in destination: {local_path}")
-            return
+
+    # If overwrite is False, check if the destination already contains the file/directory
+    if not overwrite and os.path.exists(local_path):
+        print(f"{'File' if os.path.isfile(local_path) else 'Directory'} already exists in destination: {local_path}")
+        return
 
     # Create destination folder if it does not exist
     create_destination_folder(destination)
 
-    # Construct SCP command based on the type of remote path
-    if remote_type == 'file':
-        scp_command = f"scp {login}@{domain}:{input_path} {destination}"
-    elif remote_type == 'dir':
-        scp_command = f"scp -r {login}@{domain}:{input_path} {destination}"
+    # Use rsync for progress display and efficient transfers
+    rsync_command = f"rsync -ah --progress {login}@{domain}:{input_path} {destination}/"
 
-   # Execute the SCP command
     try:
-        subprocess.run(scp_command, shell=True, check=True)
-        print(f"Downloaded {input_path} to {local_path}")
+        subprocess.run(rsync_command, shell=True, check=True)
+        print(f"Successfully downloaded {input_path} to {local_path}")
     except subprocess.CalledProcessError as e:
-        print(f"Error during SCP transfer: {e}")
+        print(f"Error during transfer: {e}")
+
 
 
 def read_histogram(filename, histname, dim):

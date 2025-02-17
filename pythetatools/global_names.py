@@ -19,7 +19,7 @@ analysis_type_xedges = {'Erec':erec_egdes, 'e-theta':erec_egdes,       'p-theta'
 analysis_type_yedges = {'Erec':None,       'e-theta':theta_numu_edges, 'p-theta':theta_nue_edges }
 
 sample_to_nuflav = {'numu1R':'numu', 'nue1R':'nue', 'numubar1R':'numu', 'nuebar1R':'nue', 'numucc1pi':'numu', 'nuecc1pi':'nue', 'nue1RD':'nue'}
-sample_to_title = {'numu1R':r'$\nu_\mu$ 1R', 'nue1R':r'$\nu_e$ 1R', 'numubar1R':r'$\bar{\nu}_\mu$ 1R', 'nuebar1R':r'$\bar{\nu}_e$ 1R', 'numucc1pi':r'MR $\nu_\mu$CC$1\pi^{+}$', 'nuecc1pi':r'1R $\nu_e$CC$1\pi^{+}$', 'nue1RD':r'$\nu_e$ 1R 1 d.e.'}
+sample_to_title = {'numu1R':r'$\nu_\mu$ 1R', 'nue1R':r'$\nu_e$ 1R', 'numubar1R':r'$\bar{\nu}_\mu$ 1R', 'nuebar1R':r'$\bar{\nu}_e$ 1R', 'numucc1pi':r'MR $\nu_\mu$CC$1\pi^{+}$', 'nuecc1pi':r'$\nu_e$CC$1\pi^{+}$', 'nue1RD':r'$\nu_e$ 1R 1 d.e.'}
 
 analysis_type_to_xlabel = {'Erec':r'$E^\nu_{rec}$, [GeV]', 'e-theta':r'$E^\nu_{rec}$, [GeV]', 'p-theta': r'$p_e$, [MeV]', 'P':r'$p_e$, [MeV]', 'Theta':r'$\theta$, [deg]'}
 analysis_type_to_xtickspos = {'Erec':np.arange(0, 3.5, 0.5), 'e-theta':np.arange(0, 3.5, 0.5), 'p-theta': np.arange(0, 1300, 200), 'P':np.arange(0, 1300, 200), 'Theta':np.arange(0, 200, 20)}
