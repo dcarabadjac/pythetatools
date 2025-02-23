@@ -21,13 +21,14 @@ def check_remote_path(remote_path, login, domain):
     # Run directory check
     dir_check = subprocess.run(check_dir_command, shell=True, capture_output=True, text=True)
     if dir_check.returncode == 0 and dir_check.stdout.strip() == 'dir':
-        return 'dir'
+        return 'directory'
 
     return None  # If neither a file nor directory exists
 
+
 def create_destination_folder(destination):
     # Ensure the destination folder exists
-    folder_path = os.path.dirname(destination) if os.path.isfile(destination) else destination
+    folder_path = destination
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
         print(f"Created destination folder: {folder_path}")
@@ -35,52 +36,60 @@ def create_destination_folder(destination):
         print(f"Destination folder already exists: {folder_path}")
 
 
-import os
-import subprocess
-
-def download(input_path, destination, login=my_login, domain=my_domain, overwrite=False):
+def download(input_path, destination, new_name=None, pattern='*', login="my_login", domain="my_domain", overwrite=False):
     """Downloads a file or directory from the computing center's server with progress indication.
     
     Parameters
     ----------
     input_path : string
         Path on the server to the input file or directory.
+    destination : string
+        Output directory for the downloaded inputs.
+    new_name : string, optional
+        New name for the downloaded file (only applicable for files).
+    pattern : string, optional
+        Pattern to match files when downloading a directory (default is '*', meaning all files).
     login : string
         Login of the account where the inputs are stored.
     domain : string
         Domain of the computing center.
-    destination : string
-        Output directory for the downloaded inputs.
     overwrite : bool, optional
         Whether to overwrite existing files, default is False.
     """
-    # Check if the remote path is a file or directory
+
+    # Check if the remote path is valid
     remote_type = check_remote_path(input_path, login, domain)
-
-    if remote_type is None:
-        print(f"Error: {input_path} does not exist or is not a file or directory on the remote system.")
+    print(remote_type)
+    if remote_type == "not_found":
+        print(f"Error: {input_path} does not exist on the remote system.")
         return
 
-    # Extract the remote name
-    basename = os.path.basename(input_path)
-    local_path = os.path.join(destination, basename)
-
-    # If overwrite is False, check if the destination already contains the file/directory
-    if not overwrite and os.path.exists(local_path):
-        print(f"{'File' if os.path.isfile(local_path) else 'Directory'} already exists in destination: {local_path}")
-        return
-
-    # Create destination folder if it does not exist
+    # Ensure destination folder exists
     create_destination_folder(destination)
 
-    # Use rsync for progress display and efficient transfers
-    rsync_command = f"rsync -ah --progress {login}@{domain}:{input_path} {destination}/"
+    if remote_type == "directory":
+        # If input_path is a directory, sync it to destination with a pattern
+        rsync_command = f"rsync -ah --progress --include='{pattern}' --exclude='*' {login}@{domain}:{input_path}/ {destination}/"
 
-    try:
-        subprocess.run(rsync_command, shell=True, check=True)
-        print(f"Successfully downloaded {input_path} to {local_path}")
-    except subprocess.CalledProcessError as e:
-        print(f"Error during transfer: {e}")
+    elif remote_type == "file":
+        # Determine local file path
+        local_file_path = os.path.join(destination, new_name) if new_name else os.path.join(destination, os.path.basename(input_path))
+
+        # Check if file exists and handle overwrite
+        if not overwrite and os.path.exists(local_file_path):
+            print(f"File already exists: {local_file_path}. Use overwrite=True to replace it.")
+            return
+
+        # Rsync for a single file
+        rsync_command = f"rsync -ah --progress {login}@{domain}:{input_path} {local_file_path}"
+
+    else:
+        print(f"Error: {input_path} is neither a file nor a directory.")
+        return
+
+    # Execute rsync command
+    print(f"Executing: {rsync_command}")
+    subprocess.run(rsync_command, shell=True)
 
 
 

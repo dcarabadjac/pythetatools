@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.transforms import Bbox
 import scipy.stats as stats
+from collections import defaultdict
 
 
 
@@ -22,8 +23,7 @@ bluish_green = np.array([0,158,115])/255
 darkorange = np.array([255,102,0])/255
 midorange = np.array([255,153,51])/255
 lightorange = np.array([255,204,153])/255
-
-color_mo = {0: midblue, 1: midorange}
+verylightorange = np.array([255, 221, 187]) / 255 
 
 rev_afmhot = sns.color_palette("afmhot", as_cmap=True)
 rev_afmhot = rev_afmhot.reversed()

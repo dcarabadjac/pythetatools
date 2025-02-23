@@ -596,7 +596,6 @@ class Sample:
         
         ifbinedgesmatch = self._check_bin_egdes_matching(other)
         
-        
         if isinstance(other, Sample) and ifbinedgesmatch:
             ratio = divide_arrays(self.z, other.z)
             return Sample(self.bin_edges, ratio, self.title, self.analysis_type, self.sample_title)

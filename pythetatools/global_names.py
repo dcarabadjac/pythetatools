@@ -1,5 +1,6 @@
 import numpy as np
 import os
+from .base_visualisation import *
 
 my_login = 'dcarabad'
 my_domain = 'cca.in2p3.fr'
@@ -31,16 +32,18 @@ analysis_type_to_energyvar = {'Erec':'Erec', 'e-theta':'Erec', 'p-theta': 'p', '
 analysis_type_to_anglevar = {'Erec':None, 'e-theta':'Theta', 'p-theta': 'Theta', 'P':None, 'Theta': 'Theta'}
 
 
-
-mo_to_label = {0: 'Normal Ordering', 1: 'Inverted Ordering'}
-osc_param_name = ["delta", "dm2", "sin223", "sin213"]
+color_mo = {0: midblue, 1: midorange}
+mo_to_label = {0: 'Normal ordering', 1: 'Inverted ordering'}
+osc_param_name = ["delta", "dm2", "sin223", "sin213", "sin2213"]
 osc_param_name_to_xlabel = {"delta": {'both': r"$\delta_{CP}$", 0:r"$\delta_{CP}$", 1:r"$\delta_{CP}$"},
-                            "dm2":   {'both': r"$\Delta m^2_{32}/|\Delta m^2_{31}|$", 0: r"$\Delta m^2_{32}$", 1:r"$|\Delta m^2_{31}|$"},
+                            "dm2":   {'both': r"$\Delta m^2_{32}/|\Delta m^2_{31}|$, $[\mathrm{eV}^2/\mathrm{c}^4]$", 0: r"$\Delta m^2_{32}$",
+                                      1:r"$|\Delta m^2_{31}|$"},
                             "sin223":{'both': r"$\sin^{2} \theta_{23}$", 0:r"$\sin^{2} \theta_{23}$", 1:r"$\sin^{2} \theta_{23}$"},
-                            "sin213":{'both': r"$\sin^{2} \theta_{13}$", 0:r"$\sin^{2} \theta_{13}$", 1:r"$\sin^{2} \theta_{13}$"}}
+                            "sin213":{'both': r"$\sin^{2} \theta_{13}$", 0:r"$\sin^{2} \theta_{13}$", 1:r"$\sin^{2} \theta_{13}$"},
+                            "sin2213":{'both': r"$\sin^{2} 2\theta_{13}$", 0:r"$\sin^{2} 2\theta_{13}$", 1:r"$\sin^{2} 2\theta_{13}$"}}
 
-osc_param_title = {"delta":[r"$\delta_{CP}$", r"$\delta_{CP}$"], "dm2":[r"$\Delta m^2_{32}$", r"$|\Delta m^2_{31}|$"], "sin223":[r"$\sin^{2} \theta_{23}$", r"$\sin^{2} \theta_{23}$"], "sin213":[r"$\sin^{2} \theta_{13}$", r"$\sin^{2} \theta_{13}$"]}
-osc_param_unit = {"delta":"", "dm2": ", $[eV^2/c^4]$", "sin223":"", "sin213":""}
+osc_param_title = {"delta":[r"$\delta_{CP}$", r"$\delta_{CP}$"], "dm2":[r"$\Delta m^2_{32}$", r"$|\Delta m^2_{31}|$"], "sin223":[r"$\sin^{2} \theta_{23}$", r"$\sin^{2} \theta_{23}$"], "sin213":[r"$\sin^{2} \theta_{13}$", r"$\sin^{2} \theta_{13}$"], "sin2213":[r"$\sin^{2} 2\theta_{13}$", r"$\sin^{2} 2\theta_{13}$"]}
+osc_param_unit = {"delta":"", "dm2": ", $[eV^2/c^4]$", "sin223":"", "sin213":""} #is it used?
 
 interaction_suffixes = ['CC_QE', 'CC_MEC', 'CC_1PIC', 'CC_1PI0', 'CC_COH', 'CC_DIS', 'CC_MPI', 'CC_MISC', 'NC_1PI0', 'NC_1PIC', 'NC_COH', 'NC_GAM', 'NC_OTHER']
 
@@ -60,5 +63,19 @@ flavour_to_label = {'numu':r'$\nu_\mu \rightarrow \nu_\mu$', 'numubar':r'$\bar{\
                     'nue': r'$\nu_e \rightarrow \nu_e$', 'nuebar': r'$\bar{\nu}_e \rightarrow \bar{\nu}_e$',
                     'nue_sig': r'$\nu_\mu \rightarrow \nu_e$', 'nuebar_sig': r'$\bar{\nu}_\mu \rightarrow \bar{\nu}_e$'}
 
+level_to_hatch = {0.6827:'/', 0.9:'\\\\', 0.9545:'XX', 0.9973:'++++'}
+level_to_color = {0:{0.6827:darkblue, 0.9:midblue, 0.9545:lightblue, 0.9973:verylightblue},
+                  1:{0.6827:darkorange, 0.9:midorange, 0.9545:lightorange, 0.9973:verylightorange},}
+level_to_label = {0.6827:'68.27% C.L.', 0.9:'90.00% C.L.', 0.9545:'95.45% C.L.', 0.9973:'99.73% C.L.'}
 
-
+#For FC files reading
+delta_values = ['0.0', '0.392699081699', '-0.785398163397', '0.785398163397',
+                '-1.57079632679', '1.57079632679', '-2.35619449019', '2.35619449019',
+                '2.59181393921', '3.14159265359' ]
+sin223_values = ['0.42', '0.44', '0.46', '0.48', '0.5', '0.52', '0.54', '0.56', '0.58', '0.6', '0.62']
+param_values = {'delta':delta_values, 'sin223':sin223_values}
+true_delta_grid_sorted = [-3.14159265359]+ list(map(float, delta_values))
+true_delta_grid_sorted.sort()
+true_sin223_grid_sorted = list(map(float, sin223_values))
+true_sin223_grid_sorted.sort
+true_param_grid_sorted = {'delta':true_delta_grid_sorted, 'sin223':true_sin223_grid_sorted}

@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.stats import chi2
+from collections import defaultdict
+
 
 def divide_arrays(array_nom, array_denom):
     where_zeros = array_denom==0
@@ -63,6 +65,29 @@ def get_1sigma_interval(x_data, y_data):
 def cl_for_sigma(z_score):
     return round(chi2.cdf(z_score**2, 1), 4)
 
-def critical_value_for_cl(cl, dof=2):
+def critical_value_for_cl(cl, dof):
     """Calculate the Δχ² value for a given confidence level and degrees of freedom."""
     return chi2.ppf(cl, dof)
+
+def get_critical_values(param_name_x, true_param_grid_sorted, true_mh, outputs_dir, dir_ver):
+    crit_val_central = defaultdict(list)
+    levels = []
+    for true_param in true_param_grid_sorted:
+        data = np.load(f"{outputs_dir}/files/{dir_ver}/FC/CriticalDchi2_{param_name_x}_{true_param}_truemh{true_mh}.npy")
+        for i, level in enumerate(data['level']):
+            crit_val_central[level].append(data['Central'][i])
+        levels = data['level']
+    return crit_val_central
+
+def find_intersections(x1, y1, x2, y2):
+    y2_interp = np.interp(x1, x2, y2)
+
+    diff = y1 - y2_interp
+
+    idx = np.where(np.diff(np.sign(diff)))[0]
+
+    x_intersections = x1[idx] - diff[idx] * (x1[idx+1] - x1[idx]) / (diff[idx+1] - diff[idx])
+    y_intersections = y1[idx] + (y1[idx+1] - y1[idx]) * (x_intersections - x1[idx]) / (x1[idx+1] - x1[idx])
+
+    return np.round(x_intersections, 3)
+
