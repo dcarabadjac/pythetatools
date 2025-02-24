@@ -11,7 +11,7 @@ from .base_analysis import divide_arrays
 from copy import copy
 from collections import defaultdict
 import matplotlib.patches as mpatches
-
+import ROOT
 
 
 def download_toyxp(input_path, login=my_login, domain=my_domain, overwrite=False):
@@ -177,6 +177,37 @@ def load_tree(filename, sample_title, tree_title, analysis_type, itoy):
         data = input_tree.arrays([xvar_branch_name], entry_start=itoy, entry_stop=itoy + 1)
         xvar = data[xvar_branch_name][0]            
         return (np.array(xvar), )
+
+def load_multiple_hists_from_tree(filename, sample_titles, tree_title,  itoy_start, itoy_end):
+    # Initialize the ToyXp class or object if needed (assuming it's defined elsewhere)
+    toy = ToyXp()
+    
+    # Open the ROOT file
+    file = ROOT.TFile(filename)
+    
+    # Access the tree
+    tree = file.Get(tree_title)  # Replace with the actual name of your tree
+    
+    # Initialize lists to store bin contents and edges
+    all_bin_contents = []
+    all_bin_edges = []
+
+    for sample_title in sample_titles:
+        # Loop through the specified entries in the tree
+        for entry in range(itoy_start, itoy_end):
+            tree.GetEntry(entry)  # Load the entry
+            
+            #histogram = tree.GetBranch(f'hist_{sample_title}')  # Access the histogram branch by name
+            histogram = getattr(tree, f'hist_{sample_title}')
+            if histogram:
+                # Get bin contents and edges
+                bin_contents = [histogram.GetBinContent(i) for i in range(1, histogram.GetNbinsX() + 1)]
+                bin_edges = [histogram.GetBinLowEdge(i) for i in range(1, histogram.GetNbinsX() + 2)]  # +2 to include the upper edge of the last bin
+                toy.append(Sample([bin_edges], bin_contents, title=f'{sample_title}_{entry}', sample_title=sample_title))
+
+    return toy
+    
+
 
 def load_toy(filename, itoy, tree_title, samples_dict, tobin=True):
     """Loads and bins a toy from PTGenerateXp output root file 
@@ -646,6 +677,9 @@ class Sample:
     def contsum(self):
         return np.sum(self.__z)
 
+    def bin_centers(self):
+        return [(bin_edges[1:] + bin_edges[:-1])/2 for bin_edges in self.bin_edges]
+
     def plot(self, ax, wtitle=True, wtag=False, kind='hist', yerr=None, **kwargs):
         """
         Plots the distrubution of the Sample object.
@@ -747,10 +781,10 @@ class Sample:
         """
         if self.ndim() == 1:
             xmin, xmax = args
-            if not(xmin in self.bin_edges[0] and xmax in self.bin_edges[0]):
+            if not(any(np.isclose(xmin, self.bin_edges[0])) and any(np.isclose(xmax, self.bin_edges[0]))):
                 raise ValueError("The slice edges should be contained in the binning edges")
-            start = np.where(self.bin_edges[0] == xmin)[0][0]
-            stop = np.where(self.bin_edges[0] == xmax)[0][0]
+            start = np.where(np.isclose(self.bin_edges[0], xmin))[0][0]
+            stop = np.where(np.isclose(self.bin_edges[0], xmax))[0][0]
             new_xedges = self.bin_edges[0][start:stop + 1]
             new_z = self.z[start:stop]
             return Sample(title=self.title, bin_edges=[new_xedges], z=new_z, analysis_type=self.analysis_type)

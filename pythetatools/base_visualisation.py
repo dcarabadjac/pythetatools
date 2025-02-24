@@ -4,9 +4,8 @@ import matplotlib.transforms as transforms
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.transforms import Bbox
-import scipy.stats as stats
 from collections import defaultdict
-
+from .base_analysis import poisson_error_bars
 
 
 RED = "\033[31m"
@@ -58,19 +57,7 @@ t2k_style = {
     'font.sans-serif': ['Arial']
 }
 
-def poisson_error_bars(Nobs, alpha):
-    yerr_low = np.zeros_like(Nobs, dtype=float)
-    yerr_high = np.zeros_like(Nobs, dtype=float)
 
-    for i, n in enumerate(Nobs):
-        if n == 0:
-            yerr_low[i] = 0
-        else:
-            yerr_low[i] = n - stats.gamma.ppf(alpha / 2, n, scale=1)
-        
-        yerr_high[i] = stats.gamma.ppf(1 - alpha / 2, n + 1, scale=1) - n
-
-    return yerr_low, yerr_high
 
 
 def plot_histogram(ax, xedges, z, **kwargs):

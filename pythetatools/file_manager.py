@@ -36,7 +36,7 @@ def create_destination_folder(destination):
         print(f"Destination folder already exists: {folder_path}")
 
 
-def download(input_path, destination, new_name=None, pattern='*', login="my_login", domain="my_domain", overwrite=False):
+def download(input_path, destination, new_name=None, pattern='*', login=my_login, domain=my_domain, overwrite=False):
     """Downloads a file or directory from the computing center's server with progress indication.
     
     Parameters

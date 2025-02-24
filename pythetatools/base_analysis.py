@@ -1,7 +1,22 @@
 import numpy as np
 from scipy.stats import chi2
 from collections import defaultdict
+import scipy.stats as stats
 
+
+def poisson_error_bars(Nobs, alpha):
+    yerr_low = np.zeros_like(Nobs, dtype=float)
+    yerr_high = np.zeros_like(Nobs, dtype=float)
+
+    for i, n in enumerate(Nobs):
+        if n == 0:
+            yerr_low[i] = 0
+        else:
+            yerr_low[i] = n - stats.gamma.ppf(alpha / 2, n, scale=1)
+        
+        yerr_high[i] = stats.gamma.ppf(1 - alpha / 2, n + 1, scale=1) - n
+
+    return yerr_low, yerr_high
 
 def divide_arrays(array_nom, array_denom):
     where_zeros = array_denom==0

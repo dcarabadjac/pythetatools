@@ -491,7 +491,7 @@ class Loglikelihood:
                 x0, x1 = self.grid[0][i], self.grid[0][i + 1]
                 edge_right = x0 + (x1 - x0) * (c - y0) / (y1 - y0)
                 edges_right.append(edge_right)   
-        return edges_left, edges_right
+        return np.array(edges_left+edges_right)
 
     def _find_CI_2d(self, nsigma, mo):
         pass
@@ -505,14 +505,6 @@ class Loglikelihood:
                 'label': mo_to_label[mo]   
             }
         default_kwargs.update(kwargs)
-
-        if show_const_critical:
-            ax.axhline(1, ls='--', color='grey', linewidth=1)
-            ax.axhline(4, ls='--', color='grey', linewidth=1)
-            ax.axhline(9, ls='--', color='grey', linewidth=1) 
-            ax.text(ax.get_xlim()[0]+0.1*np.abs(ax.get_xlim()[0]), 1, r'1$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
-            ax.text(ax.get_xlim()[0]+0.1*np.abs(ax.get_xlim()[0]), 4, r'2$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
-            ax.text(ax.get_xlim()[0]+0.1*np.abs(ax.get_xlim()[0]), 9, r'3$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
 
         if critical_values is not None:
             dense_grid = np.linspace(self.__grid[0][0], self.__grid[0][-1], 50000)
@@ -544,14 +536,31 @@ class Loglikelihood:
             for key in self.__dchi2.keys():
                 ax.plot(self.__grid[0], self.__dchi2[key], color=color_mo[key], label=mo_to_label[key], **kwargs)
             ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name[0]][self.__mo])    
-                
+
+        leg_loc_1 = None
+        leg_loc_2 = None
         if self.__param_name[0] == 'dm2':
             ax.ticklabel_format(style='scientific', axis='x', scilimits=(-3, 3))
+        elif self.__param_name[0] == 'delta':
+            ax.set_xlim(-np.pi, np.pi)
+            ax.set_ylim(0, 30)
+            ax.set_xticks(np.arange(-3, 4, 1))
+            leg_loc_1 = 'upper left'
+            leg_loc_2 = 'center left'
+            bbox_to_anchor = (0.01, 0.6)
+        elif self.__param_name[0] == 'sin223':
+            ax.set_xlim(0.38, 0.64)
+            ax.set_ylim(0, 25)
+            leg_loc_1 = 'upper center'
+            leg_loc_2 = 'center'
+            bbox_to_anchor = (0.5, 0.6)
+        
+            
         ax.set_ylabel(r'$\Delta \chi^2$')
         show_minor_ticks(ax)
         ax.set_ylim(0)
         if show_legend:
-            first_legend = ax.legend(edgecolor='white', loc='best', frameon=True)
+            first_legend = ax.legend(edgecolor='white', loc=leg_loc_1, frameon=True)
             ax.add_artist(first_legend)
         
             if critical_values is not None:
@@ -566,9 +575,19 @@ class Loglikelihood:
                 first_legend_bbox = first_legend.get_window_extent(renderer)
                 bbox_transformed = first_legend_bbox.transformed(ax.transAxes.inverted())
                 x0, y0, width, height = bbox_transformed.bounds          
+                print(x0)
                 second_legend = ax.legend(handles=legend_patches, 
-                                          frameon=True, bbox_to_anchor=(x0 , y0 - 0.02), ncol=1)
+                                          frameon=True,  ncol=1, fontsize=18, loc=leg_loc_2, bbox_to_anchor=bbox_to_anchor)
                 ax.add_artist(second_legend)
+        if show_const_critical:
+            ax.axhline(1, ls='--', color='grey', linewidth=1, zorder=0)
+            ax.axhline(4, ls='--', color='grey', linewidth=1, zorder=0)
+            ax.axhline(9, ls='--', color='grey', linewidth=1, zorder=0) 
+            x_min, x_max = ax.get_xlim()
+            x_pos = x_min + 0.03 * (x_max - x_min) 
+            ax.text(x_pos, 1, r'1$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
+            ax.text(x_pos, 4, r'2$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
+            ax.text(x_pos, 9, r'3$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
 
 
     def _plot_2d(self, ax, wtag, mo, show_map, cls, contour_kwargs=None, scatter_kwargs=None, map_kwargs=None):
