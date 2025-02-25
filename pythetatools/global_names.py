@@ -6,7 +6,7 @@ from collections import defaultdict
 my_login = 'dcarabad'
 my_domain = 'cca.in2p3.fr'
 
-tag = "OARun11A"
+tag = "OARun11A preliminary"
 library_dir = os.path.dirname(os.path.abspath(__file__))
 inputs_dir = os.path.join(os.path.dirname(library_dir), 'inputs')
 outputs_dir = os.path.join(os.path.dirname(library_dir), 'outputs')
@@ -40,7 +40,7 @@ mo_to_title = {0:'NO', 1:'IO'}
 
 osc_param_name = ["delta", "dm2", "sin223", "sin213", "sin2213"]
 osc_param_name_to_xlabel = {"delta": {'both': r"$\delta_{CP}$", 0:r"$\delta_{CP}$", 1:r"$\delta_{CP}$"},
-                            "dm2":   {'both': r"$\Delta m^2_{32}/|\Delta m^2_{31}|$, $[\mathrm{eV}^2/\mathrm{c}^4]$", 0: r"$\Delta m^2_{32}$",
+                            "dm2":   {'both': r"$\Delta m^2_{32} \mathrm{ (NO)}/|\Delta m^2_{31}| \mathrm{ (IO)}$, $[\mathrm{eV}^2/\mathrm{c}^4]$", 0: r"$\Delta m^2_{32}$",
                                       1:r"$|\Delta m^2_{31}|$"},
                             "sin223":{'both': r"$\sin^{2} \theta_{23}$", 0:r"$\sin^{2} \theta_{23}$", 1:r"$\sin^{2} \theta_{23}$"},
                             "sin213":{'both': r"$\sin^{2} \theta_{13}$", 0:r"$\sin^{2} \theta_{13}$", 1:r"$\sin^{2} \theta_{13}$"},

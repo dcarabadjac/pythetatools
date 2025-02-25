@@ -103,6 +103,8 @@ def load(file_pattern, mo="both"):
     ngrid = [len(g) for g in grid]
     print(f"Grid sizes: {ngrid} for parameters {param_name}")
 
+    #assert np.prod(ngrid) * nmhtested * ntoys * nfiles  == df_all_combined.shape[0], f"Grid size mismatch: {np.prod(ngrid)}*{nmhtested}*{ntoys}*{nfiles}=? {df_all_combined.shape[0]}"
+
     # Initialize storage for AvNLLtot
     """
     if "ToyXp" in df_all_combined.columns: 
@@ -121,7 +123,7 @@ def load(file_pattern, mo="both"):
         key: -np.log(value * nthrows_per_file / target_nthrows) + AvNLLtot_values[0] for key, value in AvNLLtot.items()
     }
     """
-    if "ToyXp" in df_all_combined.columns: 
+    if ntoys > 1: 
         AvNLLtot = {i: np.zeros((ntoys, *ngrid)) for i in range(nmhtested)} if nmhtested == 2 else {mo: np.zeros((ntoys, *ngrid))}
     else:
         AvNLLtot = {i: np.zeros(ngrid) for i in range(nmhtested)} if nmhtested == 2 else {mo: np.zeros(ngrid)}
@@ -133,7 +135,7 @@ def load(file_pattern, mo="both"):
     # Вычисляем экспоненту заранее
     AvNLL_exp = np.exp(-(AvNLLtot_values - AvNLLtot_values[0]))
     
-    if "ToyXp" in df_all_combined.columns:
+    if ntoys > 1:
         toyid_values = df_all_combined["ToyXp"].astype(int).values
         for i in range(nmhtested):
             mask = mh_grid_indices == i
@@ -264,7 +266,7 @@ class Loglikelihood:
             Default is 'joint'.
         """
         self.__grid = grid
-        self.__avnllh = {key: value[0] for key, value in avnllh.items()} 
+        self.__avnllh = {key: value for key, value in avnllh.items()} 
         self.__avnllh_pertoy = avnllh 
         self.__param_name = param_name
         self.__kind = kind
@@ -539,6 +541,11 @@ class Loglikelihood:
         leg_loc_2 = None
         if self.__param_name[0] == 'dm2':
             ax.ticklabel_format(style='scientific', axis='x', scilimits=(-3, 3))
+            ax.set_xlim(0.00228, 0.00272)
+            ax.set_ylim(0, 30)
+            leg_loc_1 = 'upper center'
+            ax.set_xticks(np.arange(2.3e-3, 2.8e-3, 0.1e-3))
+
         elif self.__param_name[0] == 'delta':
             ax.set_xlim(-np.pi, np.pi)
             ax.set_ylim(0, 30)
@@ -552,7 +559,10 @@ class Loglikelihood:
             leg_loc_1 = 'upper center'
             leg_loc_2 = 'center'
             bbox_to_anchor = (0.5, 0.6)
-        
+        elif self.__param_name[0] == 'sin213':
+            #ax.set_xticks(np.arange(0.018, 0.026, 1e-3))
+            ax.set_xlim(0.0182, 0.0259)
+            ax.set_ylim(0, 30) 
             
         ax.set_ylabel(r'$\Delta \chi^2$')
         show_minor_ticks(ax)
@@ -562,18 +572,15 @@ class Loglikelihood:
             ax.add_artist(first_legend)
         
             if critical_values is not None:
-                legend_patches = [
-                    mpatches.Patch(facecolor='white', alpha=1., hatch=level_to_hatch[level], 
+                legend_patches = [ mpatches.Patch(facecolor='white', alpha=1., hatch=level_to_hatch[level], 
                                    edgecolor='black', linewidth=1, label=level_to_label[level])
-                    for level in levels
-                ]
+                                   for level in levels]
                 
                 fig = ax.figure
                 renderer = fig.canvas.get_renderer()
                 first_legend_bbox = first_legend.get_window_extent(renderer)
                 bbox_transformed = first_legend_bbox.transformed(ax.transAxes.inverted())
                 x0, y0, width, height = bbox_transformed.bounds          
-                print(x0)
                 second_legend = ax.legend(handles=legend_patches, 
                                           frameon=True,  ncol=1, fontsize=18, loc=leg_loc_2, bbox_to_anchor=bbox_to_anchor)
                 ax.add_artist(second_legend)
@@ -586,6 +593,8 @@ class Loglikelihood:
             ax.text(x_pos, 1, r'1$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
             ax.text(x_pos, 4, r'2$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
             ax.text(x_pos, 9, r'3$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
+        if wtag:
+            ax.set_title(tag, loc='right')
 
 
     def _plot_2d(self, ax, wtag, mo, show_map, cls, contour_kwargs=None, scatter_kwargs=None, map_kwargs=None):
