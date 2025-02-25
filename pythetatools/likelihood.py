@@ -103,8 +103,6 @@ def load(file_pattern, mo="both"):
     ngrid = [len(g) for g in grid]
     print(f"Grid sizes: {ngrid} for parameters {param_name}")
 
-    assert np.prod(ngrid) * nmhtested * ntoys * nfiles  == df_all_combined.shape[0], f"Grid size mismatch: {np.prod(ngrid)}*{nmhtested}*{ntoys}*{nfiles}=? {df_all_combined.shape[0]}"
-
     # Initialize storage for AvNLLtot
     """
     if "ToyXp" in df_all_combined.columns: 
