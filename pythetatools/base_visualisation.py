@@ -60,7 +60,7 @@ t2k_style = {
 
 
 
-def plot_histogram(ax, xedges, z, **kwargs):
+def plot_histogram(ax, xedges, z, rotate=False, **kwargs):
     """
     Plots a 1D histogram (like in ROOT).
 
@@ -86,11 +86,14 @@ def plot_histogram(ax, xedges, z, **kwargs):
     x = np.append(xedges, xedges[-1:])
     heights = np.insert(z, 0, 0)
     heights = np.append(heights, [0])
-    ax.step(x, heights, **kwargs)
+    if not rotate:
+        ax.step(x, heights, **kwargs)
+    else:
+        ax.invert_yaxis()
+        ax.step(-heights, x, where='post', **kwargs)
 
 
-
-def plot_data(ax, xedges, z, yerr):
+def plot_data(ax, xedges, z, yerr=None, rotate=False, label=None):
     x_centers = (xedges[1:] + xedges[:-1])/2
     bin_widths = (xedges[1:] - xedges[:-1])/2
 
@@ -98,7 +101,10 @@ def plot_data(ax, xedges, z, yerr):
         alpha = 1 - 0.6827
         yerr_low, yerr_high = poisson_error_bars(z, alpha)
         yerr = (yerr_low, yerr_high)
-    ax.errorbar(x_centers, z, yerr=yerr, xerr=bin_widths, fmt='o', label='Data', color='black', markersize=5, capsize=2, elinewidth=2, capthick=1)
+    if not rotate:
+        ax.errorbar(x_centers, z, yerr=yerr, xerr=bin_widths, fmt='o', label=label, color='black', markersize=5, capsize=2, elinewidth=2, capthick=1)
+    else:
+        ax.errorbar(-z, x_centers, yerr=bin_widths, xerr=(yerr[1], yerr[0]), fmt='o', label=label, color='black', markersize=5, capsize=2, elinewidth=2, capthick=1)
 
 
 def show_minor_ticks(ax, axis='both'):

@@ -513,10 +513,10 @@ class UnbinnedSample:
             
     def _plot_1d(self, ax, wtitle, wtag, **kwargs):
         """
-        As drawing unbinned 1D does not make any sence binned distribution will be plotted 
+        As drawing unbinned 1D does not make any sence. Binned distribution will be plotted 
         """
         binned_sample = bin_sample1D(self.__xvar, title=self.__title, analysis_type=self.__analysis_type,)
-        binned_sample.plot(ax, wtitle, wtag, kind='data')
+        binned_sample.plot(ax, wtitle, wtag, kind='data', **kwargs)
         
 class Sample:
     """
@@ -680,7 +680,7 @@ class Sample:
     def bin_centers(self):
         return [(bin_edges[1:] + bin_edges[:-1])/2 for bin_edges in self.bin_edges]
 
-    def plot(self, ax, wtitle=True, wtag=False, kind='hist', yerr=None, **kwargs):
+    def plot(self, ax, wtitle=True, wtag=False, kind='hist', yerr=None, show_colorbar=True, rotate=False, **kwargs):
         """
         Plots the distrubution of the Sample object.
 
@@ -691,12 +691,14 @@ class Sample:
         wtag : bool
             Set True (False) to (not) show the tag 
         """
+        plot = None
         if self.ndim() == 1:
-            self._plot_1d(ax, wtitle, wtag, kind, yerr, **kwargs)
+            self._plot_1d(ax, wtitle, wtag, kind, yerr, rotate, **kwargs)
         elif self.ndim() == 2:
-            self._plot_2d(ax, wtitle, wtag, kind, **kwargs)
+            plot = self._plot_2d(ax, wtitle, wtag, kind, show_colorbar, **kwargs)
         else:
-            raise ValueError("Plotting is only supported for 1D and 2D samples.")     
+            raise ValueError("Plotting is only supported for 1D and 2D samples.")   
+        return plot
 
     def rebin(self, new_bin_edges):
         """
@@ -802,12 +804,12 @@ class Sample:
             new_z = self.z[start_x:stop_x, start_y:stop_y]
             return Sample(title=self.title, bin_edges=[new_xedges, new_yedges], z=new_z, analysis_type=self.analysis_type)
 
-    def _plot_1d(self, ax, wtitle, wtag, kind, yerr, **kwargs):
+    def _plot_1d(self, ax, wtitle, wtag, kind, yerr, rotate, **kwargs):
         
         if kind == 'hist':
-            plot_histogram(ax, self.bin_edges[0], self.z, **kwargs)
+            plot_histogram(ax, self.bin_edges[0], self.z, rotate, **kwargs)
         else:
-            plot_data(ax, self.bin_edges[0], self.z, yerr)
+            plot_data(ax, self.bin_edges[0], self.z, yerr, **kwargs)
 
         if self.title is not None and wtitle:
             ax.set_title(sample_to_title[self.sample_title], loc='left')
@@ -822,10 +824,10 @@ class Sample:
         ax.set_ylim(bottom=0)
         ax.set_ylabel('Number of events')
 
-    def _plot_2d(self, ax, wtitle, wtag, kind, **kwargs):
+    def _plot_2d(self, ax, wtitle, wtag, kind, show_colorbar, **kwargs):
         
         label = kwargs.pop('label', None)
-        if self.title is not None:
+        if self.title is not None and wtitle:
             ax.set_title(sample_to_title[self.sample_title], loc='left', fontsize=20)
         if self.analysis_type is not None:
             _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
@@ -845,12 +847,14 @@ class Sample:
         vmax = displayed_z.max() if displayed_z.size > 0 else None
         mesh = ax.pcolormesh(self.bin_edges[0], self.bin_edges[1], self.z.transpose(), zorder=0, 
                              cmap=kwargs.pop('cmap', rev_afmhot), vmax=vmax,  **kwargs)
-        cbar = plt.colorbar(mesh, ax=ax)
+        if show_colorbar:
+            cbar = plt.colorbar(mesh, ax=ax)
         
         #ax.pcolormesh does not support labels. Dummy patches are introduced instead
         if label:
             rectangle = mpatches.Rectangle((100.1, 0.1), 0.3, 0.2, linewidth=1, edgecolor=None, facecolor='orange', label=label)
             ax.add_patch(rectangle)
+        return mesh
     
     def _rebin_1d(self, new_bin_edges):
         if len(new_bin_edges) != 1:
