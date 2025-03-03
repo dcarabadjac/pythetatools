@@ -37,7 +37,7 @@ def get_sample_titles(filename):
     with uproot.open(filename) as file:
         keys = file.keys() # Get list of all keys        
         for key in keys:
-            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key) and not ('_' in key): #select only rec distr
+            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key): #select only rec distr
                 sample_titles.append(key[1:-2])
     return sample_titles
     
@@ -58,7 +58,7 @@ def get_samples_info(filename):
     with uproot.open(filename) as file:
         keys = file.keys() # Get list of all keys        
         for key in keys:
-            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key) and not ('_' in key): #select only rec distr
+            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key): #select only rec distr
                 analysis_type_key = f"{key[1:-2]}_analysis_type" # Get the corresponding analysis type for this sample
                 analysis_type = file[analysis_type_key].all_members['fTitle']
                 samples_dict[key[1:-2]] = analysis_type
@@ -593,19 +593,16 @@ class Sample:
         return f"Title: {self.title}; Sample title: {self.sample_title}; Dimension: {self.ndim()}; Shape: {self.z.shape}; Analysis type: {self.analysis_type} Integral: {self.contsum()}"
     
     def __add__(self, other): 
-        if isinstance(other, Sample) and all(all(self.bin_edges[i] == other.bin_edges[i]) for i in range(self.ndim())):
+        if isinstance(other, Sample) and self._check_bin_egdes_matching(other):
             return Sample(self.bin_edges, self.z + other.z, self.title, self.analysis_type, self.sample_title)
-        elif isinstance(other,(int, float)):
+        elif isinstance(other,(int, float, np.ndarray)):
             return Sample(self.bin_edges, self.z + other, self.title, self.analysis_type, self.sample_title)
         raise ValueError("Incompatible operand type or size")
         
     def __sub__(self, other):
-        
-        ifbinedgesmatch = self._check_bin_egdes_matching(other)
-
-        if (isinstance(other, Sample) and ifbinedgesmatch):
+        if isinstance(other, Sample) and self._check_bin_egdes_matching(other):
             return Sample(self.bin_edges, self.z - other.z, self.title, self.analysis_type, self.sample_title)
-        elif isinstance(other,(int, float)):
+        elif isinstance(other,(int, float, np.ndarray)):
             return Sample(self.bin_edges, self.z - other, self.title, self.analysis_type, self.sample_title)
         raise ValueError("Incompatible operand type or size")
         
@@ -740,7 +737,8 @@ class Sample:
     def project_to_x(self):
         if self.ndim()>1:
             return self.rebin([self.bin_edges[0], [self.bin_edges[1][0], self.bin_edges[1][-1]]])
-        raise ValueError('Trying to project 1D')
+        print('Trying to project 1D. The sample will not be modified.')
+        return self  
     
     def project_to_y(self):
         if self.ndim()>1:
@@ -919,7 +917,7 @@ class Sample:
 
         ifbinedgesmatch = np.allclose(self.bin_edges[0], other.bin_edges[0])
         if self.ndim() == 2:
-            isbinedgesmatch = isbinedgesmatch and np.array_equal(self.bin_edges[1], other.bin_edges[1])
+            ifbinedgesmatch = ifbinedgesmatch and np.allclose(self.bin_edges[1], other.bin_edges[1])
         return ifbinedgesmatch
 
 class ToyXp:
@@ -1014,6 +1012,18 @@ class ToyXp:
             if sample.sample_title == sample_title:
                 sample_per_int_mode.append(sample)
         return sample_per_int_mode
+
+    def project_to_x(self):
+        projected_toy = ToyXp()
+        for sample in self.samples:
+            projected_toy.append(sample.project_to_x())
+        return projected_toy
+
+    def project_to_y(self):
+        prejected_toy = ToyXp()
+        for sample in self.samples:
+            prejected_toy.append(sample.project_to_y())
+        return prejected_toy
  
 
 
