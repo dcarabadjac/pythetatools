@@ -1,30 +1,24 @@
+from .config import *
+from .config_samples import *
+from .config_visualisation import *
+from .base_visualisation import *
+from .base_analysis import divide_arrays
+from .file_manager import download
+
 import numpy as np
 from matplotlib import pyplot as plt
-from .global_names import *
 import subprocess
 from array import array
 import os
-import uproot
-from .file_manager import download
-from .base_visualisation import *
-from .base_analysis import divide_arrays
-from copy import copy
-from collections import defaultdict
+
+from collections import defaultdict, Sequence
 import matplotlib.patches as mpatches
-import ROOT
+
+import uproot
+import ROOT #Ideally should not be used however it is needed for reading/writing ROOT files in some cases
 
 
-def download_toyxp(input_path, login=my_login, domain=my_domain, overwrite=False):
-    """Dowloads the PTGenerateXP output root file from CC 
-    
-    Parameters
-    ----------
-    filename : string
-        The filename of PTGenerateXP output root file
-    """
-    download(input_path, login=login, domain=domain, destination=os.path.join(inputs_dir, 'ToyXp'), overwrite=overwrite)
-
-def get_sample_titles(filename):
+def get_titles(filename):
     """Provides the sample titles from PTGenerateXP output root file
     
     Parameters
@@ -41,7 +35,7 @@ def get_sample_titles(filename):
                 sample_titles.append(key[1:-2])
     return sample_titles
     
-def get_samples_info(filename):
+def get_samples_info(filename, sample_titles=None):
     """Provides information of the samples (the titles and analysis-type's) stored in PTGenerateXp output root file 
     
     Parameters
@@ -54,18 +48,19 @@ def get_samples_info(filename):
         A dictionary according to following format: {sample_title: analysis_type}, where sample_title in the title of the sample, analysis_type is the binning of this sample (e-theta, PTheta or Erec)
     """
     samples_dict = {}
-    
+
+    if sample_titles is None:
+        sample_titles = get_titles(filename)
+        
     with uproot.open(filename) as file:
-        keys = file.keys() # Get list of all keys        
-        for key in keys:
-            if (file[key].classname.startswith("TH2") or file[key].classname.startswith("TH1")) and not ('_true' in key): #select only rec distr
-                analysis_type_key = f"{key[1:-2]}_analysis_type" # Get the corresponding analysis type for this sample
-                analysis_type = file[analysis_type_key].all_members['fTitle']
-                samples_dict[key[1:-2]] = analysis_type
+        for sample_title in sample_titles:
+            analysis_type_key = f"{sample_title}_analysis_type" # Get the corresponding analysis type for this sample
+            analysis_type = file[analysis_type_key].all_members['fTitle']
+            samples_dict[sample_title] = analysis_type
     return samples_dict
 
 
-def load(filename, kind, itoy=None, breakdown=False, samples_dict=None, tobin=True):
+def load(filename, kind, itoy=None, breakdown=False, samples_dict=None, sample_titles=None, tobin=True, ntoys=1):
     """Loads a toy/asimov from output root file of PTGenerateXp
 
     Parameters
@@ -88,18 +83,17 @@ def load(filename, kind, itoy=None, breakdown=False, samples_dict=None, tobin=Tr
     >>> toy = pythetatools.toyanalysis.load(filename, type="toy", itoy=1)
 
     """
-    
-    toy = ToyXp() #
+    toy = ToyXp() 
     if kind=='asimov':
-        toy = load_hists(filename, breakdown, samples_dict)
+        toy = load_hists(filename, breakdown, samples_dict, sample_titles)
     elif kind=='toy':
-        toy = load_toy(filename, itoy=itoy, tree_title='ToyXp', samples_dict=samples_dict, tobin=tobin)
+        toy = load_toy(filename, itoy=itoy, tree_title='ToyXp', samples_dict=samples_dict, sample_titles=sample_titles, tobin=tobin, ntoys=ntoys)
     elif kind=='data':
-        toy = load_toy(filename, itoy=0, tree_title='Data_Tree', samples_dict=samples_dict, tobin=tobin)
+        toy = load_toy(filename, itoy=0, tree_title='Data_Tree', samples_dict=samples_dict, sample_titles=sample_titles, tobin=tobin)
     return toy
 
 
-def load_hists(filename, breakdown=False, samples_dict=None):
+def load_hists(filename, breakdown=False, samples_dict=None, sample_titles=None):
     """Loads asimovs from PTGenerateXp output root file 
 
     Parameters
@@ -113,7 +107,7 @@ def load_hists(filename, breakdown=False, samples_dict=None):
         An object of ToyXp class containt all the asimovs stored in the root file
     """
     if samples_dict is None:
-        samples_dict = get_samples_info(filename)
+        samples_dict = get_samples_info(filename, sample_titles)
     toy = ToyXp()
     
     with uproot.open(filename) as file:
@@ -129,21 +123,64 @@ def load_hists(filename, breakdown=False, samples_dict=None):
                 
         if breakdown:
             for sample_title, analysis_type in samples_dict.items():
-                for inter in interaction_suffixes:
-                    for flavour in flavours_suffixes:
-                        hist = file[f'h{sample_title}_{inter}_{flavour}']
+                for inter in interaction_modes:
+                    for osc_channel in osc_channels:
+                        hist = file[f'h{sample_title}_{inter}_{osc_channel}']
                         xedges = hist.axis(0).edges()
                         z = hist.values()
                         if analysis_type =='e-theta' or analysis_type =='PTheta' or analysis_type =='p-theta':
                             yedges = hist.axis(1).edges()
-                            toy.append(Sample([xedges, yedges], z, f'{sample_title}_{inter}_{flavour}', analysis_type, sample_title))    
+                            toy.append(Sample([xedges, yedges], z, f'{sample_title}_{inter}_{osc_channel}', analysis_type, sample_title))    
                         else:
-                            toy.append(Sample([xedges], z, f'{sample_title}_{inter}_{flavour}', analysis_type, sample_title))
+                            toy.append(Sample([xedges], z, f'{sample_title}_{inter}_{osc_channel}', analysis_type, sample_title))
         
     return toy
 
-def load_tree(filename, sample_title, tree_title, analysis_type, itoy):
-    """Loads a unbinned toy for a given sample
+def load_toy(filename, itoy, tree_title, samples_dict=None, sample_titles=None, tobin=True, ntoys=1):
+    """Loads and bins a toy from PTGenerateXp output root file 
+
+    Parameters
+    ----------
+    filename : string
+        The filename of PTGenerateXp output root file
+    itoy : 
+        The index of toy to be loaded.
+    Returns
+    ------
+    ToyXp
+        The object of ToyXp class which stores either asimov data set and a toy data set
+
+    """
+    toy = ToyXp()
+    if samples_dict is None:
+        samples_dict = get_samples_info(filename, sample_titles)
+                
+    if tobin:
+        with uproot.open(filename) as file:
+            for sample_title, analysis_type in samples_dict.items():
+                if analysis_type_to_dim[analysis_type] == '1D':
+                    samples = bin_sample1D(*load_tree(filename, sample_title, tree_title, 
+                                                     analysis_type, itoy, ntoys), sample_title=sample_title, analysis_type=analysis_type)
+                elif analysis_type_to_dim[analysis_type] == '2D':
+                    samples = bin_sample2D(*load_tree(filename, sample_title, tree_title,
+                                                     analysis_type, itoy, ntoys), sample_title=sample_title, analysis_type=analysis_type)
+                for sample in samples:
+                    toy.append(sample)
+        return toy
+    else:
+        with uproot.open(filename) as file:
+            for sample_title, analysis_type in samples_dict.items():
+                if analysis_type_to_dim[analysis_type] == '1D':
+                    sample = UnbinnedSample(*load_tree(filename, sample_title, tree_title, 
+                                                     analysis_type, itoy), title=sample_title, analysis_type=analysis_type)
+                elif analysis_type_to_dim[analysis_type] == '2D':
+                    sample = UnbinnedSample(*load_tree(filename, sample_title, tree_title,
+                                                     analysis_type, itoy), title=sample_title, analysis_type=analysis_type)
+                toy.append(sample)
+        return toy
+
+def load_tree(filename, sample_title, tree_title, analysis_type, itoy, ntoys=1):
+    """Loads a unbinned data for a given sample
 
     Parameters
     ----------
@@ -165,20 +202,41 @@ def load_tree(filename, sample_title, tree_title, analysis_type, itoy):
         if input_tree is None:
             raise ValueError (f"'{tree_title}' tree not found in file {filename}")
 
-        if analysis_type =='e-theta' or analysis_type =='p-theta':
+        if analysis_type_to_dim[analysis_type] == '2D':
             xvar_branch_name = f"{analysis_type_to_xvar[analysis_type]}_{sample_title}"
             t_branch_name = f"t_{sample_title}"
-            data = input_tree.arrays([xvar_branch_name, t_branch_name], entry_start=itoy, entry_stop=itoy + 1)
-            xvar = data[xvar_branch_name][0]  
-            theta = data[t_branch_name][0]
-            return (np.array(xvar), np.array(theta))
+            data = input_tree.arrays([xvar_branch_name, t_branch_name], entry_start=itoy, entry_stop=itoy + ntoys)
+            xvar = data[xvar_branch_name]
+            theta = data[t_branch_name]
+            return (list(xvar), list(theta))
 
         xvar_branch_name = f"{analysis_type_to_xvar[analysis_type]}_{sample_title}"
-        data = input_tree.arrays([xvar_branch_name], entry_start=itoy, entry_stop=itoy + 1)
-        xvar = data[xvar_branch_name][0]            
-        return (np.array(xvar), )
+        data = input_tree.arrays([xvar_branch_name], entry_start=itoy, entry_stop=itoy + ntoys)
+        xvar = data[xvar_branch_name]            
+        return (list(xvar), )
 
-def load_multiple_hists_from_tree(filename, sample_titles, tree_title,  itoy_start, itoy_end):
+def load_multiple_hists_from_tree(filename, sample_titles, start_ientry, nentries, tree_title='ToyXp'):
+    """Loads multiple histograms from a tree in ROOT file in a ToyXp object for each sample and entry.
+    For example, it is used for bievent plots
+
+    Parameters
+    ----------
+    filename : string
+        The filename of the ROOT file containing the tree with histograms.
+    sample_titles : list of string
+        A list of sample titles corresponding to histogram branches in the tree (e.g., 'nue1R', 'numubar1R', etc.).
+    tree_title : string
+        The name of the tree within the ROOT file from which the histograms are extracted.
+    start_ientry : int
+        The starting index for the entries to loop over in the tree.
+    nentries : int
+        Number the entries to loop over in the tree.
+
+    Returns
+    -------
+    ToyXp
+        An object containing the loaded histograms for each sample title and tree entry, each represented as a Sample.
+    """
     # Initialize the ToyXp class or object if needed (assuming it's defined elsewhere)
     toy = ToyXp()
     
@@ -194,7 +252,7 @@ def load_multiple_hists_from_tree(filename, sample_titles, tree_title,  itoy_sta
 
     for sample_title in sample_titles:
         # Loop through the specified entries in the tree
-        for entry in range(itoy_start, itoy_end):
+        for entry in range(start_ientry, start_ientry+nentries):
             tree.GetEntry(entry)  # Load the entry
             
             #histogram = tree.GetBranch(f'hist_{sample_title}')  # Access the histogram branch by name
@@ -208,55 +266,7 @@ def load_multiple_hists_from_tree(filename, sample_titles, tree_title,  itoy_sta
     return toy
     
 
-
-def load_toy(filename, itoy, tree_title, samples_dict, tobin=True):
-    """Loads and bins a toy from PTGenerateXp output root file 
-
-    Parameters
-    ----------
-    filename : string
-        The filename of PTGenerateXp output root file
-    itoy : 
-        The index of toy to be loaded.
-    Returns
-    ------
-    ToyXp
-        The object of ToyXp class which stores either asimov data set and a toy data set
-
-    """
-    if tobin:
-        if samples_dict is None:
-            samples_dict = get_samples_info(filename)
-        toy = ToyXp()
-        with uproot.open(filename) as file:
-            for sample_title, analysis_type in samples_dict.items():
-                if analysis_type_to_dim[analysis_type] == '1D':
-                    sample = bin_sample1D(*load_tree(filename, sample_title, tree_title, 
-                                                     analysis_type, itoy), sample_title, analysis_type)
-                    toy.append(sample)
-                elif analysis_type_to_dim[analysis_type] == '2D':
-                    sample = bin_sample2D(*load_tree(filename, sample_title, tree_title,
-                                                     analysis_type, itoy), sample_title, analysis_type)
-                    toy.append(sample)
-        return toy
-    else:
-        if samples_dict is None:
-            samples_dict = get_samples_info(filename)
-        toy = ToyXp()
-        with uproot.open(filename) as file:
-            for sample_title, analysis_type in samples_dict.items():
-                if analysis_type_to_dim[analysis_type] == '1D':
-                    sample = UnbinnedSample(*load_tree(filename, sample_title, tree_title, 
-                                                     analysis_type, itoy), title=sample_title, analysis_type=analysis_type)
-                elif analysis_type_to_dim[analysis_type] == '2D':
-                    sample = UnbinnedSample(*load_tree(filename, sample_title, tree_title,
-                                                     analysis_type, itoy), title=sample_title, analysis_type=analysis_type)
-                print(sample_title)
-                toy.append(sample)
-        return toy
-
-
-def bin_sample1D(xvar, title=None, analysis_type=None, bin_edges=None):
+def bin_sample1D(xvar, sample_title, analysis_type=None, bin_edges=None):
     """Bins a toy in 1D histogram
 
     Parameters
@@ -273,11 +283,25 @@ def bin_sample1D(xvar, title=None, analysis_type=None, bin_edges=None):
         The object of Sample1D class binning xvar array
     """
     if bin_edges is None and analysis_type is not None:
-        bin_edges = analysis_type_xedges[analysis_type] ## Finish here!
-    hist = np.histogram(xvar, bins=bin_edges)
-    return Sample([hist[1]], hist[0], title, analysis_type)
+        bin_edges = analysis_type_xedges[analysis_type] 
+    elif bin_edges is None and analysis_type is None:
+        raise ValueError("Either 'bin_edges' or 'analysis_type' must be provided.")
+     
+    samples = []
+    i = -1
+    if len(xvar) > 1:
+        for x in xvar: 
+            i += 1
+            x = np.array(x)
+            hist = np.histogram(x, bins=bin_edges)
+            samples.append(Sample([hist[1]], hist[0], title=f'{sample_title}_itoy{i}', analysis_type=analysis_type, sample_title=sample_title))
+    else: #in case we do not have many toys
+        x = np.array(xvar[0])
+        hist =hist = np.histogram(x, bins=bin_edges)
+        samples.append(Sample([hist[1]], hist[0], title=f'{sample_title}', analysis_type=analysis_type, sample_title=sample_title))
+    return samples
 
-def bin_sample2D(xvar, yvar, title=None, analysis_type=None, bin_edges=None):
+def bin_sample2D(xvar, yvar, sample_title=None, analysis_type=None, bin_edges=None):
     """Bins a toy in 2D histogram
 
     Parameters
@@ -296,13 +320,26 @@ def bin_sample2D(xvar, yvar, title=None, analysis_type=None, bin_edges=None):
         The object of Sample2D class binning (xvar, yvar) array
     """
     if bin_edges is None and analysis_type is not None:
-        bin_xedges = analysis_type_xedges[analysis_type]  ## Finish here!
+        bin_xedges = analysis_type_xedges[analysis_type]
         bin_yedges = analysis_type_yedges[analysis_type]  
+    elif bin_edges is None and analysis_type is None:
+        raise ValueError("Either 'bin_edges' or 'analysis_type' must be provided.")
 
-    hist = np.histogram2d(xvar, yvar, bins=(bin_xedges, bin_yedges))
     
-    return Sample([hist[1], hist[2]], hist[0], title, analysis_type)
-
+    samples = []
+    i = -1
+    if len(xvar) > 1:
+        for x, y in zip(xvar, yvar): 
+            i += 1
+            x, y = np.array(x), np.array(y)
+            hist = np.histogram2d(x, y, bins=(bin_xedges, bin_yedges))
+            samples.append(Sample([hist[1], hist[2]], hist[0], title=f'{sample_title}_itoy{i}', analysis_type=analysis_type, sample_title=sample_title))
+    else: #in case we do not have many toys
+        x, y = np.array(xvar[0]), np.array(yvar[0])
+        hist = np.histogram2d(x, y, bins=(bin_xedges, bin_yedges))
+        samples.append(Sample([hist[1], hist[2]], hist[0], title=f'{sample_title}', analysis_type=analysis_type, sample_title=sample_title))
+    return samples
+        
 
 def calculate_dchi2(sample_obs, sample_exp, perbin=False):
     """Calculates a -2deltalnL for given observed and expected samples distributions per bin of the observables or as sum over all bins
@@ -331,44 +368,28 @@ def calculate_dchi2(sample_obs, sample_exp, perbin=False):
         result = np.sum(result)
     return 2*result
 
-def plot_stacked_samples(ax, samples, labels, **kwargs):
-    """
-    Plots a 1D histogram (like in ROOT).
+def project_all_samples(toy, axis, verbose=False):
+    """Projects all samples in a ToyXp object along a specified axis.
 
     Parameters
     ----------
-    samples : list
-        The list of the histograms to be stacked
-    **kwargs : dict, optional
-        Additional keyword arguments to be passed to the `ax.step` function 
-        for customizing the plot (e.g., color, linewidth, linestyle).
-    """
-    # Define default styles
-    default_kwargs = {
-        'alpha': 1.0,
-        'step': 'pre'
-    }
-    default_kwargs.update(kwargs)
-    
-    colors = [
-        "#4A6FA5",  
-        "#2A9D8F",  
-        "#E9C46A",  
-        "#E76F51",  
-        "#A88FDC", 
-        "#F4A261"
-    ]
-    
-    hist_stacked_prev = copy(samples[0])
-    hist_stacked_prev.set_z(hist_stacked_prev.z*0)
-    x = hist_stacked_prev.bin_edges[0]
-    for label, sample, color in zip(labels, samples, colors):
-        hist_stacked_current = sample + hist_stacked_prev
-        ax.fill_between(x, np.insert(hist_stacked_prev.z, 0, 0), np.insert(hist_stacked_current.z, 0, 0), zorder=0, label=label, color=color, **default_kwargs)
-        hist_stacked_current.plot(ax, linewidth=0)
-        hist_stacked_prev = hist_stacked_current
+    toy : ToyXp
+        The ToyXp object containing the samples to be projected.
+    axis : string
+        The axis to project along. Should be one of 'energy' or 'angle'. Here 'energy' stand for both Erec and p
+    verbose : bool, optional
+        If True, prints messages for 1D samples that are skipped. Default is False.
 
-def project_all_samples(toy, axis, verbose=False):
+    Returns
+    -------
+    ToyXp
+        A new ToyXp object containing the projected 1D samples.
+    
+    Raises
+    ------
+    ValueError
+        If an invalid value for 'axis' is provided (other than 'energy' or 'angle').
+    """
     toy_1D = ToyXp()
     for sample in toy.samples:
         if sample.ndim() > 1:
@@ -393,98 +414,209 @@ def project_all_samples(toy, axis, verbose=False):
     return toy_1D
         
 
-def merge_for_inter_plotting(toyxp):
+def merge_for_inter_plotting(toy):
+    """Merges samples the flavour and nominal interaction modes components to config_samples.interaction_modes_2 for plotting.
+
+    Parameters
+    ----------
+    toy : ToyXp
+        The ToyXp object containing samples from various interaction modes and oscillation channels.
+
+    Returns
+    -------
+    ToyXp
+        A new ToyXp object containing the merged samples for each interaction mode, 
+        ready for plotting. Each merged sample corresponds to a unique interaction mode 2.
+    """
     toy_per_int_mode = ToyXp()
     
-    for sample_title in toyxp.sample_titles:
+    for sample_title in toy.sample_titles:
         sample_per_int = defaultdict(lambda: 0)
-        for inter in interaction_suffixes:
-            for flavour in flavours_suffixes:
+        for inter in interaction_modes:
+            for flavour in osc_channels:
                 title = f'{sample_title}_{inter}_{flavour}'
-                sample_per_int[int1_to_int2[inter]] =  sample_per_int[int1_to_int2[inter]] + toyxp[title]
+                sample_per_int[inter_to_inter2[inter]] =  sample_per_int[inter_to_inter2[inter]] + toy[title]
 
-        for inter2 in interaction_suffixes_2:
+        for inter2 in interaction_modes_2:
             sample_per_int[inter2].set_title(f'{sample_title}_{inter2}')
             sample_per_int[inter2].set_sample_title(f'{sample_title}')
             toy_per_int_mode.append(sample_per_int[inter2])
             
     return toy_per_int_mode
 
-def merge_for_flavour_plotting(toyxp):
+def merge_for_flavour_plotting(toy):
+    """Merges the samples osc.channels component to have only break down by flavours for plotting.
+
+    Parameters
+    ----------
+    toy : ToyXp
+        The ToyXp object containing samples from various interaction modes and flavours.
+
+    Returns
+    -------
+    ToyXp
+        A new ToyXp object containing the merged samples for each flavour, 
+        ready for plotting. Each merged sample corresponds to a unique flavour.
+    """
 
     toy_per_flavour = ToyXp()
     
-    for sample_title in toyxp.sample_titles:
+    for sample_title in toy.sample_titles:
         sample_per_flavour = defaultdict(lambda: 0)
-        for flavour in flavours_suffixes :
-            for inter in interaction_suffixes:
-                title = f'{sample_title}_{inter}_{flavour}'
-                sample_per_flavour[flavour] =  sample_per_flavour[flavour] + toyxp[title]
+        for osc_channel in osc_channels :
+            for inter in interaction_modes:
+                title = f'{sample_title}_{inter}_{osc_channel}'
+                sample_per_flavour[osc_channel] =  sample_per_flavour[osc_channel] + toy[title]
 
-        for flavour in flavours_suffixes:
-            sample_per_flavour[flavour].set_title(f'{sample_title}_{flavour}')
-            sample_per_flavour[flavour].set_sample_title(f'{sample_title}')
-            toy_per_flavour.append(sample_per_flavour[flavour])
+        for osc_channel in osc_channels:
+            sample_per_flavour[osc_channel].set_title(f'{sample_title}_{osc_channel}')
+            sample_per_flavour[osc_channel].set_sample_title(f'{sample_title}')
+            toy_per_flavour.append(sample_per_flavour[osc_channel])
             
     return toy_per_flavour
 
 
 class UnbinnedSample:
-    def __init__(self, xvar, yvar=None, title=None, analysis_type=None):
+    def __init__(self, xvar, yvar=None, title=None, analysis_type=None, sample_title=None):
         """
-        Initializes a Sample class that can handle both 1D and 2D histograms.
+        Initializes a UnbinnedSample class that can handle both 1D and 2D unbinned samples.
     
-        Parameters:
+        Parameters
         ----------
-        title : string
-            Title of the sample
-        bin_edges: List
-            Contains bin edges, e.g., [xedges] for 1D or [xedges, yedges] for 2D
-        z: array-like
-            Contains histogram values, 1D or 2D depending on the number of dimensions
-        analysis_type : string
-            The type of the binning
+        xvar : array-like
+            Contains the x-axis values of the sample.
+        yvar : array-like, optional
+            Contains the y-axis values for 2D samples.
+        title : string, optional
+            Title of the sample.
+        analysis_type : string, optional
+            The type of the binning, defining the analysis to be performed.
         """
         self.__title = title
         self.__xvar = xvar
         self.__yvar = yvar
         self.__analysis_type = analysis_type
-        
-    #Implement useful special methods
+        if sample_title is None:
+            sample_title = title
+        self.__sample_title = sample_title
+
+        if yvar and len(xvar) != len(yvar):
+            ValueError (f'yvar and xvar should have the same length, however len(yvar)={len(xvar)}, len(xvar)={len(yavr)}')
+
     def __str__(self):
-        return f"Title: {self.title}; Dimension: {self.ndim()}; Analysis type: {self.analysis_type}"
+        """
+        Returns a string representation of the Sample object.
+        
+        Returns
+        -------
+        string
+            A string containing the title, dimensions, and analysis type of the sample.
+        """
+        return f"Title: {self.title}; Sample title: {self.sample_title}; Dimension: {self.ndim()}; Analysis type: {self.analysis_type} Integral: {self.contsum()}"
     
-    #Set getters
     @property
     def title(self):
+        """
+        Getter for the title of the sample.
+
+        Returns
+        -------
+        string
+            The title of the sample.
+        """
         return self.__title
+        
+    @property
+    def sample_title(self):
+        """
+        Getter for the sample_title of the sample.
+
+        Returns
+        -------
+        string
+            The title of the sample.
+        """
+        return self.__sample_title
+
     @property
     def xvar(self):
+        """
+        Getter for the x-variable of the sample.
+
+        Returns
+        -------
+        array-like
+            The x-variable (e.g., xedges) of the sample.
+        """
         return self.__xvar
+
     @property
     def yvar(self):
+        """
+        Getter for the y-variable of the sample (if present).
+        
+        Returns
+        -------
+        array-like, optional
+            The y-variable (e.g., yedges) of the sample if available; otherwise None.
+        """
         return self.__yvar
+
     @property
     def analysis_type(self):
+        """
+        Getter for the analysis type of the sample.
+        
+        Returns
+        -------
+        string, optional
+            The type of the analysis (e.g., binning scheme).
+        """
         return self.__analysis_type
     
-        
-    #Set methods
     def ndim(self):
+        """
+        Returns the number of dimensions of the sample.
+        
+        Returns
+        -------
+        int
+            1 for 1D samples, 2 for 2D samples.
+        """
         if self.__yvar is not None:
             return 2
         return 1
+
+    def contsum(self):
+        """
+        Returns the number of dimensions of the sample.
+        
+        Returns
+        -------
+        int
+            1 for 1D samples, 2 for 2D samples.
+        """
+        return len(self.__xvar) 
         
     def plot(self, ax, wtitle=True, wtag=False, **kwargs):
         """
-        Plots the distrubution of the Sample object.
+        Plots the distribution of the UnbinnedSample object.
 
-        Parameters:
+        Parameters
         ----------
-        ax : string
-            Title of the sample
-        wtag : bool
-            Set True (False) to (not) show the tag 
+        ax : matplotlib.axes.Axes
+            The axes object where the plot will be drawn.
+        wtitle : bool, optional
+            If True, the title of the sample will be shown on the plot. Default is True.
+        wtag : bool, optional
+            If True, a tag will be displayed on the plot. Default is False.
+        **kwargs : additional keyword arguments
+            Additional arguments passed to the plotting function.
+        
+        Raises
+        ------
+        ValueError
+            If the sample has more than 2 dimensions.
         """
         if self.ndim() == 1:
             self._plot_1d(ax, wtitle, wtag, **kwargs)
@@ -494,7 +626,21 @@ class UnbinnedSample:
             raise ValueError("Plotting is only supported for 1D and 2D samples.")    
     
     def _plot_2d(self, ax, wtitle, wtag, **kwargs):
-        ax.scatter(self.__xvar, self.__yvar, facecolors='white', edgecolors='black', s=20,  **kwargs)
+        """
+        Plots a 2D sample using a scatter plot.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes object where the plot will be drawn.
+        wtitle : bool, optional
+            If True, the title will be displayed on the left of the plot. Default is True.
+        wtag : bool, optional
+            If True, a tag will be displayed on the right of the plot. Default is False.
+        **kwargs : additional keyword arguments
+            Additional arguments passed to the scatter plot function.
+        """
+        ax.scatter(self.__xvar, self.__yvar, facecolors='white', edgecolors='black', s=20, **kwargs)
         
         if self.title is not None and wtitle:
             ax.set_title(sample_to_title[self.title], loc='left')
@@ -513,10 +659,24 @@ class UnbinnedSample:
             
     def _plot_1d(self, ax, wtitle, wtag, **kwargs):
         """
-        As drawing unbinned 1D does not make any sence. Binned distribution will be plotted 
+        Plots a binned distribution of the 1D sample.
+
+        Since unbinned 1D data doesn't make sense to plot, the data is binned and plotted instead.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes object where the plot will be drawn.
+        wtitle : bool, optional
+            If True, the title will be displayed on the plot. Default is True.
+        wtag : bool, optional
+            If True, a tag will be displayed on the plot. Default is False.
+        **kwargs : additional keyword arguments
+            Additional arguments passed to the plot function.
         """
-        binned_sample = bin_sample1D(self.__xvar, title=self.__title, analysis_type=self.__analysis_type,)
-        binned_sample.plot(ax, wtitle, wtag, kind='data', **kwargs)
+        binned_sample_list = bin_sample1D(self.__xvar, sample_title=self.__sample_title, analysis_type=self.__analysis_type,) #the result of bin_sample1D is a list
+        binned_sample_list[0].plot(ax, wtitle, wtag, kind='data', **kwargs)
+
         
 class Sample:
     """
@@ -588,7 +748,6 @@ class Sample:
                 f"Shape mismatch: bin_edges implies shape {bin_egdes_shape}, "
                 f"but z has shape {self.__z.shape}. Numer of bin edges = number of bins + 1")
     
-    #Implement useful special methods
     def __str__(self):
         return f"Title: {self.title}; Sample title: {self.sample_title}; Dimension: {self.ndim()}; Shape: {self.z.shape}; Analysis type: {self.analysis_type} Integral: {self.contsum()}"
     
@@ -597,18 +756,20 @@ class Sample:
             return Sample(self.bin_edges, self.z + other.z, self.title, self.analysis_type, self.sample_title)
         elif isinstance(other,(int, float, np.ndarray)):
             return Sample(self.bin_edges, self.z + other, self.title, self.analysis_type, self.sample_title)
-        raise ValueError("Incompatible operand type or size")
+        raise TypeError("Incompatible operand type or size")
+
+    def __radd__(self, other):
+        return self.__add__(other)
         
     def __sub__(self, other):
         if isinstance(other, Sample) and self._check_bin_egdes_matching(other):
             return Sample(self.bin_edges, self.z - other.z, self.title, self.analysis_type, self.sample_title)
         elif isinstance(other,(int, float, np.ndarray)):
             return Sample(self.bin_edges, self.z - other, self.title, self.analysis_type, self.sample_title)
-        raise ValueError("Incompatible operand type or size")
+        raise TypeError("Incompatible operand type or size")
         
-    def __radd__(self, other):
-        if isinstance(other, (int, float)):
-            return self.__add__(other)
+    def __rsub__(self, other):
+        return self.__sub__(other)
         
     def __mul__(self, other):
         if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
@@ -616,6 +777,9 @@ class Sample:
         elif isinstance(other,(int, float)):
             return Sample(self.bin_edges, self.z * other, self.title, self.analysis_type, self.sample_title)
         raise ValueError("Incompatible operand type or size")
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
             
     def __neg__(self):
         return Sample(self.bin_edges, -self.z, self.title, self.analysis_type)
@@ -809,7 +973,7 @@ class Sample:
         else:
             plot_data(ax, self.bin_edges[0], self.z, yerr, **kwargs)
 
-        if self.title is not None and wtitle:
+        if self.sample_title is not None and wtitle:
             ax.set_title(sample_to_title[self.sample_title], loc='left')
         if self.analysis_type is not None:
             _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
@@ -1007,6 +1171,19 @@ class ToyXp:
             raise ValueError('The element of ToyXp should be Sample object')
 
     def filter_by_sample_title(self, sample_title):
+        """
+        Filters samples by their sample title and returns a ToyXp object with the matching samples.
+
+        Parameters
+        ----------
+        sample_title : string
+            The title of the sample to filter by.
+
+        Returns
+        -------
+        ToyXp
+            A new ToyXp object containing samples that match the provided sample_title.
+        """
         sample_per_int_mode = ToyXp()
         for sample in self.samples:
             if sample.sample_title == sample_title:
@@ -1014,16 +1191,37 @@ class ToyXp:
         return sample_per_int_mode
 
     def project_to_x(self):
+        """
+        Projects all samples to the x-axis and returns a new ToyXp object containing the projected samples.
+
+        This method assumes that each sample has a `project_to_x` method that performs the projection.
+
+        Returns
+        -------
+        ToyXp
+            A new ToyXp object containing the projected samples along the x-axis.
+        """
         projected_toy = ToyXp()
         for sample in self.samples:
             projected_toy.append(sample.project_to_x())
         return projected_toy
 
     def project_to_y(self):
+        """
+        Projects all samples to the y-axis and returns a new ToyXp object containing the projected samples.
+
+        This method assumes that each sample has a `project_to_y` method that performs the projection.
+
+        Returns
+        -------
+        ToyXp
+            A new ToyXp object containing the projected samples along the y-axis.
+        """
         prejected_toy = ToyXp()
         for sample in self.samples:
             prejected_toy.append(sample.project_to_y())
         return prejected_toy
+
  
 
 
