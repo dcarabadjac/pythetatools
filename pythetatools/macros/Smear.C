@@ -108,14 +108,14 @@ void Smear(char *infile, char *outfile, double smear_error_dm2 = 1.446e-5)
       cont_new->Write("cont");
       pXParam->Write();
       pYParam->Write();
-      f->Get("xParamName")->Write();
-      f->Get("yParamName")->Write();
+      f->Get("xParamName")->Write("xParamName");
+      f->Get("yParamName")->Write("yParamName");
       out1->Close();
   }
   else {
       // 1d
       f->ls();
-      TParameter<int> *pXParam = (TParameter<int> *)f->Get("gridParam");
+      TParameter<int> *pXParam = (TParameter<int> *)f->Get("xParam");
 
       TH1D *c1_new = (TH1D *)c1_org;
       // for 1D let's simply smeear by default
@@ -137,7 +137,7 @@ void Smear(char *infile, char *outfile, double smear_error_dm2 = 1.446e-5)
       TFile *out1=new TFile(outfile,"recreate");
       c1_new->Write("cont");
       pXParam->Write();
-      f->Get("gridParamName")->Write("gridParamName");
+      f->Get("xParamName")->Write("xParamName");
       out1->Close();
   }
 }
