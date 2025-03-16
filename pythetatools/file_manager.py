@@ -6,7 +6,7 @@ import subprocess
 import os
 import uproot
 import subprocess
-from .global_names import my_login, my_domain
+from .config import my_login, my_domain
 
 def check_remote_path(remote_path, login, domain):
     # Check if the remote path is a file or directory using SSH
@@ -91,8 +91,6 @@ def download(input_path, destination, new_name=None, pattern='*', login=my_login
     print(f"Executing: {rsync_command}")
     subprocess.run(rsync_command, shell=True)
 
-
-
 def read_histogram(filename, histname, dim):
     """Loads 1D or 2D histogram from the ROOT file."""
     
@@ -100,11 +98,33 @@ def read_histogram(filename, histname, dim):
         hist = file[f'{histname}']
         xedges = hist.axis(0).edges()
         z = hist.values()
-        if dim==2:
+        errors = hist.errors()  # Читаем ошибки
+        
+        if dim == 2:
             yedges = hist.axis(1).edges()
-    if dim==2:  
-        return xedges, yedges, z
-    if dim==1:  
-        return xedges, z
+            return xedges, yedges, z,  errors
+            
+        if dim == 1:
+            return xedges, z, errors
+
+
+def read_cont(filename, dim):
+    """Loads the ROOT file with AvNlltot."""
+    
+    with uproot.open(filename) as file:
+        hist = file['cont']
+        xedges = hist.axis(0).edges()
+        z = hist.values()
+        errors = hist.errors()  # Читаем ошибки
+        param_name_x = file[f"xParamName"]
+        
+        if dim == 2:
+            yedges = hist.axis(1).edges()
+            param_name_y = file[f"yParamName"]
+            return xedges, yedges, z, [param_name_x, param_name_y], errors
+            
+        if dim == 1:
+            return xedges, z, [param_name_x], errors
+            
 
 

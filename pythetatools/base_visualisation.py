@@ -6,59 +6,39 @@ import seaborn as sns
 from matplotlib.transforms import Bbox
 from collections import defaultdict
 from .base_analysis import poisson_error_bars
+from copy import copy
 
 
-RED = "\033[31m"
-RESET = "\033[0m"
-GREEN = "\033[32m"
+def plot_stacked_samples(ax, samples, labels, **kwargs):
+    """
+    Plots a 1D histogram (like in ROOT).
 
-darkblue = np.array([0,102,255])/255
-midblue = np.array([51,153,255])/255
-lightblue= np.array([153,204,255])/255 
-verylightblue= '#c4e2f6'
-vermilion = np.array([217,96,59])/255
-midorange = np.array([255,153,51])/255
-bluish_green = np.array([0,158,115])/255
-darkorange = np.array([255,102,0])/255
-midorange = np.array([255,153,51])/255
-lightorange = np.array([255,204,153])/255
-verylightorange = np.array([255, 221, 187]) / 255 
-
-rev_afmhot = sns.color_palette("afmhot", as_cmap=True)
-rev_afmhot = rev_afmhot.reversed()
-
-t2k_style = {
-    'figure.figsize': (9, 6),
-    'lines.linewidth': 3,
-    'axes.labelsize': 25,
-    'axes.titlesize': 25,
-    'axes.grid': True,
-    'axes.grid.axis': 'both',
-    'axes.grid.which': 'both',
-    'axes.axisbelow': True,
-    'axes.spines.right': True,
-    'xtick.direction': 'in',
-    'xtick.labelsize': 25,
-    'xtick.top': True,
-    'xtick.major.width': 0.8,
-    'xtick.major.size': 10,
-    'ytick.direction': 'in',
-    'ytick.labelsize': 25,
-    'ytick.right': True,
-    'ytick.major.width': 0.8,
-    'ytick.major.size': 10,
-    'legend.fancybox': False,
-    'legend.fontsize': 20,
-    'legend.edgecolor': 'white',
-    'legend.shadow': False,
-    'grid.linewidth': 0.0,
-    'grid.linestyle': '-',
-    'font.family': 'sans-serif',
-    'font.sans-serif': ['Arial']
-}
-
-
-
+    Parameters
+    ----------
+    samples : list
+        The list of the histograms to be stacked
+    **kwargs : dict, optional
+        Additional keyword arguments to be passed to the `ax.step` function 
+        for customizing the plot (e.g., color, linewidth, linestyle).
+    """
+    # Define default styles
+    default_kwargs = {
+        'alpha': 1.0,
+        'step': 'pre'
+    }
+    default_kwargs.update(kwargs)
+    
+    colors = [ "#4A6FA5", "#2A9D8F", "#E9C46A", "#E76F51", "#A88FDC", "#F4A261"]
+    
+    hist_stacked_prev = copy(samples[0])
+    hist_stacked_prev.set_z(hist_stacked_prev.z*0)
+    x = hist_stacked_prev.bin_edges[0]
+    for label, sample, color in zip(labels, samples, colors):
+        hist_stacked_current = sample + hist_stacked_prev
+        ax.fill_between(x, np.insert(hist_stacked_prev.z, 0, 0), np.insert(hist_stacked_current.z, 0, 0), zorder=0, label=label, color=color, **default_kwargs)
+        hist_stacked_current.plot(ax, linewidth=0)
+        hist_stacked_prev = hist_stacked_current
+        
 
 def plot_histogram(ax, xedges, z, rotate=False, **kwargs):
     """

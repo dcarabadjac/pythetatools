@@ -1,8 +1,27 @@
 import numpy as np
-from scipy.stats import chi2
+from scipy.stats import chi2, norm, chi2
 from collections import defaultdict
 import scipy.stats as stats
 
+
+def marg_mean(x1, x2, prof=False):
+    if prof:
+        return np.minimum(x1, x2)
+    return -np.log((np.exp(-x1)/2+np.exp(-x2)/2))
+
+def get_double_sided_gaussian_zscore(x):
+    return np.round(norm.ppf((1-x/2)), 4)
+
+def quadr(x, a, b, c):
+    return a*x**2 + b*x + c
+
+def find_parabold_vertex(x1, x2, x3, y1, y2, y3):
+    h = x3-x2
+    a = ((y3+y1)/2. - y2)/(h*h)
+    b = ((y3-y1)/2. - 2.*a*h*x2)/h
+    c = y2 - a*x2**2 - b*x2
+    xmin = -b/(2.*a)
+    return xmin, quadr(xmin, a, b, c)
 
 def poisson_error_bars(Nobs, alpha):
     yerr_low = np.zeros_like(Nobs, dtype=float)
@@ -77,12 +96,12 @@ def get_1sigma_interval(x_data, y_data):
     else:
         print("Bad roots founds")
     
-def cl_for_sigma(z_score):
-    return round(chi2.cdf(z_score**2, 1), 4)
+def sigma_to_CL(nsigma):
+    return round(chi2.cdf(nsigma**2, 1), 4)
 
-def critical_value_for_cl(cl, dof):
+def CL_to_chi2critval(CL, dof):
     """Calculate the Δχ² value for a given confidence level and degrees of freedom."""
-    return chi2.ppf(cl, dof)
+    return chi2.ppf(CL, dof)
 
 def get_critical_values(param_name_x, true_param_grid_sorted, true_mh, outputs_dir, dir_ver):
     crit_val_central = defaultdict(list)
