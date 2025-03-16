@@ -772,7 +772,7 @@ class Sample:
         return self.__sub__(other)
         
     def __mul__(self, other):
-        if (isinstance(other, Sample) and self.bin_edges == other.bin_edges):
+        if isinstance(other, Sample) and self._check_bin_egdes_matching(other):
             return Sample(self.bin_edges, self.z * other.z)
         elif isinstance(other,(int, float)):
             return Sample(self.bin_edges, self.z * other, self.title, self.analysis_type, self.sample_title)
