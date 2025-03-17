@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import chi2, norm, chi2
-from collections import defaultdict
 import scipy.stats as stats
+from pathlib import Path
 
 
 def marg_mean(x1, x2, prof=False):
@@ -103,15 +103,6 @@ def CL_to_chi2critval(CL, dof):
     """Calculate the Δχ² value for a given confidence level and degrees of freedom."""
     return chi2.ppf(CL, dof)
 
-def get_critical_values(param_name_x, true_param_grid_sorted, true_mh, outputs_dir, dir_ver):
-    crit_val_central = defaultdict(list)
-    levels = []
-    for true_param in true_param_grid_sorted:
-        data = np.load(f"{outputs_dir}/files/{dir_ver}/FC/CriticalDchi2_{param_name_x}_{true_param}_truemh{true_mh}.npy")
-        for i, level in enumerate(data['level']):
-            crit_val_central[level].append(data['Central'][i])
-        levels = data['level']
-    return crit_val_central
 
 def find_intersections(x1, y1, x2, y2):
     y2_interp = np.interp(x1, x2, y2)

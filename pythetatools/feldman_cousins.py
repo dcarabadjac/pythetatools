@@ -1,30 +1,27 @@
 import numpy as np
-from .likelihood import load
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
-from .global_names import color_mo, level_to_ls, level_to_label, osc_param_title, mo_to_title
-from .base_visualisation import show_minor_ticks
+from .base_analysis import find_parabold_vertex
+from collections import defaultdict
+from pathlib import Path
 
-def read_files(file_pattern):
-    grid, avnllh, param_name = load(file_pattern)
 
-    AvNLL_pergrid_pertoy = np.stack([avnllh[0], avnllh[1]], axis=1)
-    grid_x = grid[0]
-    param_name_x = param_name[0]
 
-    return grid_x, param_name_x, AvNLL_pergrid_pertoy
-
-def quadr(x, a, b, c):
-    return a*x**2 + b*x + c
-
-def find_parabold_ymin(x1, x2, x3, y1, y2, y3):
-    h = x3-x2
-    a = ((y3+y1)/2. - y2)/(h*h)
-    b = ((y3-y1)/2. - 2.*a*h*x2)/h
-    c = y2 - a*x2**2 - b*x2
-    xmin = -b/(2.*a)
-    return quadr(xmin, a, b, c)
-
+def get_critical_values(filename_template, param_name_flattened, true_param_grid_sorted, true_mh ):
+    crit_val_central = defaultdict(list)
+    levels = []
+    
+    for true_param in true_param_grid_sorted:
+        filename = filename_template.format(param_name_flattened=param_name_flattened, true_param=true_param, mh=true_mh)
+        filepath = Path(filename)
+        data = np.load(filepath)
+        
+        for i, level in enumerate(data['level']):
+            crit_val_central[level].append(data['Upper'][i])
+        
+        levels = data['level']
+    
+    return crit_val_central
 
 def find_minimum_pertoy_forgivenmh(grid_x, AvNLL_pergrid_pertoy, mh, param_name):
     index_x0_central = np.argmin(AvNLL_pergrid_pertoy[:, mh, :], axis=1) 
@@ -44,6 +41,8 @@ def find_minimum_pertoy_forgivenmh(grid_x, AvNLL_pergrid_pertoy, mh, param_name)
         index_x0_right = np.where(index_x0_right > 50, index_x0_right-50, index_x0_right) 
         avnll_pertoy_right = AvNLL_pergrid_pertoy[np.arange(AvNLL_pergrid_pertoy.shape[0]), mh, index_x0_right]
         x0_right = grid_x_extended_right[index_x0_central]
+    elif param_name == 'sindelta':
+        return avnll_pertoy_central
     else:
         index_x0_left = np.argmin(AvNLL_pergrid_pertoy[:, mh, :], axis=1) - 1
         x0_left = grid_x[index_x0_left]
@@ -52,7 +51,7 @@ def find_minimum_pertoy_forgivenmh(grid_x, AvNLL_pergrid_pertoy, mh, param_name)
         x0_right = grid_x[index_x0_right]
         avnll_pertoy_right = AvNLL_pergrid_pertoy[np.arange(AvNLL_pergrid_pertoy.shape[0]), mh, index_x0_right]    
     
-    result = find_parabold_ymin(x0_left, x0_central, x0_right,
+    _, result = find_parabold_vertex(x0_left, x0_central, x0_right,
                             avnll_pertoy_left, avnll_pertoy_central, avnll_pertoy_right)
     return result
     

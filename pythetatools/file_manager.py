@@ -91,40 +91,38 @@ def download(input_path, destination, new_name=None, pattern='*', login=my_login
     print(f"Executing: {rsync_command}")
     subprocess.run(rsync_command, shell=True)
 
-def read_histogram(filename, histname, dim):
+def read_histogram(filename, histname):
     """Loads 1D or 2D histogram from the ROOT file."""
     
     with uproot.open(filename) as file:
         hist = file[f'{histname}']
         xedges = hist.axis(0).edges()
         z = hist.values()
-        errors = hist.errors()  # Читаем ошибки
+        errors = hist.errors()  
+        ndim = z.ndim
+        bin_edges = [hist.axis(i).edges() for i in range(ndim)]
         
-        if dim == 2:
-            yedges = hist.axis(1).edges()
-            return xedges, yedges, z,  errors
+        return bin_edges, z,  errors
             
-        if dim == 1:
-            return xedges, z, errors
 
 
-def read_cont(filename, dim):
+def read_cont(filename):
     """Loads the ROOT file with AvNlltot."""
     
     with uproot.open(filename) as file:
         hist = file['cont']
         xedges = hist.axis(0).edges()
         z = hist.values()
-        errors = hist.errors()  # Читаем ошибки
         param_name_x = file[f"xParamName"]
+
+        ndim = z.ndim
+        z = z.reshape(1, *z.shape)
+
+        prefix = ['x', 'y']
+        bin_edges = [hist.axis(i).edges() for i in range(ndim)]
+        param_names = [file[f"{axis}ParamName"] for axis in prefix[:ndim]]
         
-        if dim == 2:
-            yedges = hist.axis(1).edges()
-            param_name_y = file[f"yParamName"]
-            return xedges, yedges, z, [param_name_x, param_name_y], errors
-            
-        if dim == 1:
-            return xedges, z, [param_name_x], errors
+    return bin_edges, z, param_names
             
 
 
