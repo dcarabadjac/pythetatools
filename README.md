@@ -11,5 +11,7 @@ pythetatools/docs/_build/html/index.html
 
 To update the documentation run from docs folder:
 rm pythetatools*rst  
+
 sphinx-apidoc -o . --separate ../pythetatools
+
 make html
