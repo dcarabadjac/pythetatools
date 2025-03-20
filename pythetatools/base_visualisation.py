@@ -11,15 +11,19 @@ from copy import copy
 
 def plot_stacked_samples(ax, samples, labels, **kwargs):
     """
-    Plots a 1D histogram (like in ROOT).
+    Plot a stacked 1D binned samples.
 
     Parameters
     ----------
+    ax : matplotlib.axes.Axes
+        The axis on which to plot the histogram.
     samples : list
-        The list of the histograms to be stacked
+        List of histogram objects to be stacked.
+    labels : list
+        List of labels corresponding to the stacked histograms.
     **kwargs : dict, optional
-        Additional keyword arguments to be passed to the `ax.step` function 
-        for customizing the plot (e.g., color, linewidth, linestyle).
+        Additional keyword arguments passed to `ax.fill_between`.
+
     """
     # Define default styles
     default_kwargs = {
@@ -42,26 +46,26 @@ def plot_stacked_samples(ax, samples, labels, **kwargs):
 
 def plot_histogram(ax, xedges, z, rotate=False, **kwargs):
     """
-    Plots a 1D histogram (like in ROOT).
+    Plot a 1D histogram using a step plot.
 
     Parameters
     ----------
     ax : matplotlib.axes.Axes
         The axis on which to plot the histogram.
-    xedges : numpy array
-        The bin edges along the x-axis.
-    z : numpy array
-        The histogram bin heights corresponding to the bin edges.
+    xedges : numpy.ndarray
+        Array of bin edges along the x-axis.
+    z : numpy.ndarray
+        Array of bin heights corresponding to the bin edges.
+    rotate : bool, optional
+        If True, rotate the histogram vertically. Default is False.
     **kwargs : dict, optional
-        Additional keyword arguments to be passed to the `ax.step` function 
-        for customizing the plot (e.g., color, linewidth, linestyle).
+        Additional keyword arguments passed to `ax.step`.
 
     Notes
     -----
-    - This function uses a step plot to visualize the histogram, extending 
-      the first and last bin heights to zero for proper display.
-    - The length of `z` should be one less than the length of `xedges` 
-      because the bin heights correspond to the intervals between bin edges.
+    - The function extends the first and last bin heights to zero for better display (like in ROOT).
+    - The length of `z` should be one less than the length of `xedges`.
+
     """
     x = np.append(xedges, xedges[-1:])
     heights = np.insert(z, 0, 0)
@@ -74,6 +78,26 @@ def plot_histogram(ax, xedges, z, rotate=False, **kwargs):
 
 
 def plot_data(ax, xedges, z, yerr=None, rotate=False, label=None):
+    """
+    Plot data points with error bars.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axis on which to plot the data.
+    xedges : numpy.ndarray
+        Array of bin edges along the x-axis.
+    z : numpy.ndarray
+        Array of data values corresponding to bin centers.
+    yerr : tuple of numpy.ndarray, optional
+        Tuple containing lower and upper error bars for `z`. If None, 
+        the C.I. of Poisson mean are computed.
+    rotate : bool, optional
+        If True, rotate the data points vertically. Default is False.
+    label : str, optional
+        Label for the dataset.
+
+    """
     x_centers = (xedges[1:] + xedges[:-1])/2
     bin_widths = (xedges[1:] - xedges[:-1])/2
 
@@ -159,8 +183,22 @@ def shift_bbox_center(fig, ax, dx, dy, exp):
 
 
 def full_extent(ax, pad=0.0):
-    """Get the full extent of an axes, including axes labels, tick labels, and
-    titles."""
+    """
+    Get the full extent of an axis including labels and titles.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axis whose extent is computed.
+    pad : float, optional
+        Padding factor for expansion. Default is 0.0.
+
+    Returns
+    -------
+    matplotlib.transforms.Bbox
+        Bounding box covering the full extent of the axis.
+
+    """
     # For text objects, we need to draw the figure first, otherwise the extents
     # are undefined.
     ax.figure.canvas.draw()

@@ -19,9 +19,10 @@ pythetatools - the python package providing post-fit analysis and drawing tools 
    :caption: Modules:
 
    pythetatools.base_analysis
-   pythetatools.global_names
    pythetatools.base_visualisation
+   pythetatools.file_manager
    pythetatools.likelihood
    pythetatools.toyxp
-   pythetatools.file_manager
+   pythetatools.pvalues
+   pythetatools.feldman_cousins
 

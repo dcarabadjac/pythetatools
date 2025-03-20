@@ -24,6 +24,29 @@ import ROOT #is needed to write files
 
 
 def load_from_cont(indir, smeared, smear_factor):
+    """
+    Load AvNLLtot values from cont histograms stored in hist.root files.
+
+    Parameters
+    ----------
+    indir : str
+        Directory containing the ROOT histogram files.
+    smeared : bool
+        If True, load smeared likelihood histograms.
+    smear_factor : float
+        Smearing factor used in the histogram file name.
+
+    Returns
+    -------
+    grid : list of numpy arrays
+        Bin centers for each parameter.
+    avnllh : dict
+        A dictionary where keys correspond to mass ordering indices (0 for NO, 1 for IO),
+        and values are N-dimensional arrays of AvNLL values across the parameter grid.
+    param_names : list
+        List of parameter names corresponding to grid dimensions.
+    """
+    
     mo_to_suffix = {0:'', 1:'_IH'}
     smeared_to_postfix = {False: '', True: f'_smeared_{smear_factor}'}
     avnllh = {}
@@ -34,6 +57,28 @@ def load_from_cont(indir, smeared, smear_factor):
     return grid, avnllh, param_names
 
 def load_from_SA(indir, filename, param):
+    """
+    Load 1D dchi2 from SA_* histogram.
+
+    Parameters
+    ----------
+    indir : str
+        Directory containing the ROOT histogram file.
+    filename : str
+        Name of the ROOT file with sensitivity analysis histograms.
+    param : str
+        Parameter to load (e.g., 'delta', 'dm2').
+
+    Returns
+    -------
+    grid : list of numpy arrays
+        Bin centers for the selected parameter.
+    avnllh : dict
+        A dictionary where keys correspond to mass ordering indices (0 for NO, 1 for IO),
+        and values are N-dimensional arrays of AvNLL values across the parameter grid.
+    param_names : list
+        List of parameter names.
+    """
     param_to_suffix = {'delta':'dcp', 'dm2':'dm2'} #Finish for all params and for 2D case
     mo_to_suffix = {0:'', 1:'_IH'}
     avnllh = {}
@@ -258,7 +303,6 @@ def save_avnll_hist(llh, outdir):
 
 
 def transform_s2213_to_sin213(grid, param_name):
-
     new_grid = []
     new_param_name = []
     if 'sin2213' in param_name:
@@ -276,32 +320,32 @@ def transform_s2213_to_sin213(grid, param_name):
         return grid, param_name
 
 def update_kwargs(default_kwargs, kwargs):
-            """
-            Updates kwargs by adding missing keys from default_kwargs
-            while keeping existing user-defined values intact.
-        
-            Parameters:
-            -----------
-            default_kwargs : dict
-                Dictionary containing the default keyword arguments.
-            kwargs : dict
-                Dictionary with user-specified overrides.
-        
-            Returns:
-            --------
-            None (modifies kwargs in place).
-            """
-            for plot_type, defaults in default_kwargs.items():
-                if plot_type not in kwargs:
-                    kwargs[plot_type] = {}
-        
-                for key, default_args in defaults.items():
-                    if key not in kwargs[plot_type]:
-                        kwargs[plot_type][key] = default_args.copy()  # Copy default values
-                    else:
-                        for arg, value in default_args.items():
-                            if arg not in kwargs[plot_type][key]:  # Only update missing arguments
-                                kwargs[plot_type][key][arg] = value
+    """
+    Updates kwargs by adding missing keys from default_kwargs
+    while keeping existing user-defined values intact.
+    
+    Parameters:
+    -----------
+    default_kwargs : dict
+        Dictionary containing the default keyword arguments.
+    kwargs : dict
+        Dictionary with user-specified overrides.
+    
+    Returns:
+    --------
+    None (modifies kwargs in place).
+    """
+    for plot_type, defaults in default_kwargs.items():
+        if plot_type not in kwargs:
+            kwargs[plot_type] = {}
+    
+        for key, default_args in defaults.items():
+            if key not in kwargs[plot_type]:
+                kwargs[plot_type][key] = default_args.copy()  # Copy default values
+            else:
+                for arg, value in default_args.items():
+                    if arg not in kwargs[plot_type][key]:  # Only update missing arguments
+                        kwargs[plot_type][key][arg] = value
 
 class Loglikelihood:
     """

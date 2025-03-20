@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath('../pythetatools/'))
 project = 'pythetatools'
 copyright = '2025, Denis Carabadjac'
 author = 'Denis Carabadjac'
-release = '0.5'
+release = '0.8'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
