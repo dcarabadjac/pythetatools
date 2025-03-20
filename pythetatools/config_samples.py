@@ -21,7 +21,7 @@ sample_to_title = {'numu1R':r'$\nu_\mu$ 1R', 'nue1R':r'$\nu_e$ 1R', 'numubar1R':
                    'nuebar1R_320kA':r'$\bar{\nu}_e$ 1R 320 kA', 'numucc1pi_320kA':r'MR $\nu_\mu$CC$1\pi^{+} 320 kA$',
                    'nuecc1pi_320kA':r'$\nu_e$CC$1\pi^{+}$', 'nue1RD_320kA':r'$\nu_e$ 1R 1 d.e. 320kA'}
 
-analysis_type_to_xlabel = {'Erec':r'$E^\nu_{rec}$, [GeV]', 'P':r'$p_e$, [MeV]', 'Theta':r'$\theta$, [deg]', 'e-theta':r'$E^\nu_{rec}$, [GeV]', 'p-theta': r'$p_e$, [MeV]', 'PTheta': r'$p_e$, [MeV]'}
+analysis_type_to_xlabel = {'Erec':r'$E^\nu_{rec}$, [GeV]', 'P':r'$p_e$, [MeV/c]', 'Theta':r'$\theta$, [deg]', 'e-theta':r'$E^\nu_{rec}$, [GeV]', 'p-theta': r'$p_e$, [MeV/c]', 'PTheta': r'$p_e$, [MeV/c]'}
 analysis_type_to_xtickspos = {'Erec':np.arange(0, 3.5, 0.5), 'e-theta':np.arange(0, 3.5, 0.5), 'p-theta': np.arange(0, 1300, 200),
                               'P':np.arange(0, 1300, 200), 'Theta':np.arange(0, 200, 20), 'PTheta': np.arange(0, 1300, 200)}
 analysis_type_to_xmax = {'Erec':3, 'P':1300 ,'Theta':180, 'e-theta':3, 'p-theta': 1300,  'PTheta':1300}
