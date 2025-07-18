@@ -15,8 +15,8 @@ sample_to_nuflav = {'numu1R':'numu', 'nue1R':'nue', 'numubar1R':'numu', 'nuebar1
                     'nue1RD':'nue', 'numu1R_320kA':'numu', 'nue1R_320kA':'nue', 'numubar1R_320kA':'numu', 'nuebar1R_320kA':'nue', 
                     'numucc1pi':'numu', 'nuecc1pi_320kA':'nue', 'nue1RD_320kA':'nue'}
 
-sample_to_title = {'numu1R':r'$\nu_\mu$ 1R', 'nue1R':r'$\nu_e$ 1R', 'numubar1R':r'$\bar{\nu}_\mu$ 1R', 'nuebar1R':r'$\bar{\nu}_e$ 1R',
-                   'numucc1pi':r'MR $\nu_\mu$CC$1\pi^{+}$', 'nuecc1pi':r'$\nu_e$CC$1\pi^{+}$', 'nue1RD':r'$\nu_e$ 1R 1 d.e.',
+sample_to_title = {'numu1R':r'FHC 1R$\mu$', 'nue1R':r'FHC 1Re', 'numubar1R':r'RHC 1R$\mu$', 'nuebar1R':r'RHC 1Re',
+                   'numucc1pi':r'FHC MR$\mu$', 'nuecc1pi':r'FHC MRe', 'nue1RD':r'FHC 1Re 1d.e.',
                    'numu1R_320kA':r'$\nu_\mu$ 1R 320kA', 'nue1R_320kA':r'$\nu_e$ 1R 320 kA', 'numubar1R_320kA':r'$\bar{\nu}_\mu$ 1R 320 kA',
                    'nuebar1R_320kA':r'$\bar{\nu}_e$ 1R 320 kA', 'numucc1pi_320kA':r'MR $\nu_\mu$CC$1\pi^{+} 320 kA$',
                    'nuecc1pi_320kA':r'$\nu_e$CC$1\pi^{+}$', 'nue1RD_320kA':r'$\nu_e$ 1R 1 d.e. 320kA'}

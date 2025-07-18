@@ -56,7 +56,7 @@ def load_from_cont(indir, smeared, smear_factor):
     grid = [(bin_edges[i][1:]+bin_edges[i][:-1])/2 for i in range(len(bin_edges))]
     return grid, avnllh, param_names
 
-def load_from_SA(indir, filename, param):
+def load_from_SA(indir, filename, param, mo='both'):
     """
     Load 1D dchi2 from SA_* histogram.
 
@@ -79,17 +79,25 @@ def load_from_SA(indir, filename, param):
     param_names : list
         List of parameter names.
     """
-    param_to_suffix = {'delta':'dcp', 'dm2':'dm2'} #Finish for all params and for 2D case
+    param_to_suffix = {'delta':'dcp', 'dm2':'dm2', 'sin223':'sin223', 'sin213':'sin213'} #Finish for all params and for 2D case
     mo_to_suffix = {0:'', 1:'_IH'}
     avnllh = {}
-    
-    for mo in [0]:
+
+    if mo=='both':
+        for imo in [0, 1]: 
+            bin_edges, double_avnllh,  _ = read_histogram(os.path.join(indir, filename), f'SA_{param_to_suffix[param]}{mo_to_suffix[imo]}')
+            double_avnllh = double_avnllh.reshape(1, *double_avnllh.shape)
+            avnllh[imo] = double_avnllh/2
+            grid = [(bin_edges[i][1:]+bin_edges[i][:-1])/2 for i in range(len(bin_edges))]
+            param_names = [param]
+    elif mo==0 or mo==1:
         bin_edges, double_avnllh,  _ = read_histogram(os.path.join(indir, filename), f'SA_{param_to_suffix[param]}{mo_to_suffix[mo]}')
         double_avnllh = double_avnllh.reshape(1, *double_avnllh.shape)
         avnllh[mo] = double_avnllh/2
-    grid = [(bin_edges[i][1:]+bin_edges[i][:-1])/2 for i in range(len(bin_edges))]
-    param_names = [param]
-    
+        grid = [(bin_edges[i][1:]+bin_edges[i][:-1])/2 for i in range(len(bin_edges))]
+        param_names = [param]
+    else:
+        raise ValueError ("mo can be equal to 'both', 0 or 1.")
     return grid, avnllh, param_names
 
 def load(file_pattern, mo="both"):
@@ -189,16 +197,17 @@ def load(file_pattern, mo="both"):
 
     grid_indices = np.array([np.searchsorted(grid[i], grid_values[i]) for i in range(noscparams)]).T
     mh_grid_indices = mh_values.astype(int) if nmhtested == 2 else np.full(len(df_all_combined), mo)
-    
-    AvNLL_exp = np.exp(-(AvNLLtot_values - AvNLLtot_values[0]))
-    
+
+    shift = np.min(AvNLLtot_values)
+    AvNLL_exp = np.exp(-(AvNLLtot_values - shift))
+
     toyid_values = df_all_combined["ToyXp"].astype(int).values
     for i in range(nmhtested):
         mask = mh_grid_indices == i
         np.add.at(AvNLLtot[i], (toyid_values[mask], *grid_indices[mask].T), AvNLL_exp[mask])
 
     factor = nfiles
-    AvNLLtot = {key: -np.log(value / factor) + AvNLLtot_values[0] for key, value in AvNLLtot.items()}
+    AvNLLtot = {key: -np.log(value / factor) + shift for key, value in AvNLLtot.items()}
     
     return grid, AvNLLtot, param_name
 
@@ -275,8 +284,8 @@ def save_avnll_hist(llh, outdir):
                              len(x_bin_edges) - 1, x_bin_edges,
                              len(y_bin_edges) - 1, y_bin_edges)
     
-            hist.GetXaxis().SetTitle(osc_param_title[llh.param_name[0]][mo])
-            hist.GetYaxis().SetTitle(osc_param_title[llh.param_name[1]][mo])
+            hist.GetXaxis().SetTitle(osc_param_to_title[llh.param_name[0]][mo])
+            hist.GetYaxis().SetTitle(osc_param_to_title[llh.param_name[1]][mo])
             hist.GetZaxis().SetTitle(r'$-2 \ln{L}$')
     
             for i in range(len(x_bin_centers)):
@@ -775,11 +784,10 @@ class Loglikelihood:
             ax.axhline(1, ls='--', color='grey', linewidth=1, zorder=0)
             ax.axhline(4, ls='--', color='grey', linewidth=1, zorder=0)
             ax.axhline(9, ls='--', color='grey', linewidth=1, zorder=0) 
-            x_min, x_max = ax.get_xlim()
-            x_pos = x_min + 0.03 * (x_max - x_min) 
-            ax.text(x_pos, 1, r'1$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
-            ax.text(x_pos, 4, r'2$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
-            ax.text(x_pos, 9, r'3$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
+
+            ax.text(0.03, 1.0, r'1$\sigma$', color='grey', fontsize=10, verticalalignment='bottom', horizontalalignment='left', transform=ax.get_yaxis_transform())
+            ax.text(0.03, 4.0, r'2$\sigma$', color='grey', fontsize=10, verticalalignment='bottom', horizontalalignment='left', transform=ax.get_yaxis_transform())
+            ax.text(0.03, 9.1, r'3$\sigma$', color='grey', fontsize=10, verticalalignment='bottom', horizontalalignment='left', transform=ax.get_yaxis_transform())
         if wtag:
             ax.set_title(tag, loc='right')
         return first_legend, second_legend
@@ -804,23 +812,12 @@ class Loglikelihood:
             ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name[0]][mo])
         else:
             if band:
-                for key in self.dict_to_plot.keys():
+                for key in dict_to_plot.keys():
                     plot_band(key)
             else:
                 for key in dict_to_plot.keys():
                     ax.plot(self.__grid[0], dict_to_plot[key][itoy], color=color_mo[key], label=mo_to_label[key], **kwargs)
             ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name[0]][self.__mo]) 
-
-
-        if show_const_critical:
-            ax.axhline(1, ls='--', color='grey', linewidth=1, zorder=0)
-            ax.axhline(4, ls='--', color='grey', linewidth=1, zorder=0)
-            ax.axhline(9, ls='--', color='grey', linewidth=1, zorder=0) 
-            x_min, x_max = ax.get_xlim()
-            x_pos = x_min + 0.03 * (x_max - x_min) 
-            ax.text(x_pos, 1, r'1$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
-            ax.text(x_pos, 4, r'2$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
-            ax.text(x_pos, 9, r'3$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
         
         if wtag:
             ax.set_title(tag, loc='right')
@@ -851,6 +848,16 @@ class Loglikelihood:
             #ax.set_xticks(np.arange(0.018, 0.026, 1e-3))
             ax.set_xlim(0.0182, 0.0259)
             ax.set_ylim(0, 30) 
+
+        if show_const_critical:
+            ax.axhline(1, ls='--', color='grey', linewidth=1, zorder=0)
+            ax.axhline(4, ls='--', color='grey', linewidth=1, zorder=0)
+            ax.axhline(9, ls='--', color='grey', linewidth=1, zorder=0) 
+            x_min, x_max = ax.get_xlim()
+            x_pos = x_min + 0.03 * (x_max - x_min) 
+            ax.text(x_pos, 1, r'1$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
+            ax.text(x_pos, 4, r'2$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
+            ax.text(x_pos, 9, r'3$\sigma$', color='grey', fontsize=10, verticalalignment='bottom')
             
         return None, None
 
@@ -953,7 +960,7 @@ class Loglikelihood:
         for i in range(2):   
             if self.__param_name[i] == 'dm2':
                 ax.ticklabel_format(style='scientific', axis=ind_to_axis[i], scilimits=(-3, 3))
-                set_lim_ticks(ind_to_axis[i], 0.00211, 0.00285, 2.2e-3, 2.9e-3, 0.1e-3)
+                set_lim_ticks(ind_to_axis[i], 0.00228, 0.00290, 2.3e-3, 2.95e-3, 0.1e-3)
                 
             elif self.__param_name[i] == 'delta':
                 set_lim_ticks(ind_to_axis[i], -np.pi, np.pi, -3, 4, 1)
