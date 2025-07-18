@@ -69,7 +69,8 @@ def download(input_path, destination, new_name=None, pattern='*', login=my_login
 
     if remote_type == "directory":
         # If input_path is a directory, sync it to destination with a pattern
-        rsync_command = f"rsync -ah --progress --include='{pattern}' --exclude='*' {login}@{domain}:{input_path}/ {destination}/"
+        basename = os.path.basename(input_path.rstrip("/"))
+        rsync_command = f"rsync -ah --progress --include='{pattern}' --exclude='*' {login}@{domain}:{input_path}/ {destination}/{basename}"
 
     elif remote_type == "file":
         # Determine local file path
