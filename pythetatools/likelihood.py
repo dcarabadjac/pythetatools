@@ -4,8 +4,9 @@ Defines Loglikelihood classes and related functions
 
 from array import array
 import uproot
+import os
 import numpy as np
-from .config import *
+from . import config as cfg
 from .config_visualisation import *
 from .config_osc_params import *
 from .base_analysis import find_parabold_vertex, sigma_to_CL, CL_to_chi2critval
@@ -604,7 +605,7 @@ class Loglikelihood:
         """
         return len(self.__grid)
 
-    def plot(self, ax, wtag=False, mo=None, from_pertoy=False, itoy=0, band=False, show_legend=True, show_map=False, cls=['1sigma', '2sigma', '3sigma'], show_contours=True, show_const_critical=True, x_critical_values=None, critical_values=None, contour_kwargs=None, scatter_kwargs=None, map_kwargs=None, **kwargs):
+    def plot(self, ax, wtag=False, mo=None, from_pertoy=False, itoy=0, band=False, show_legend=True, show_map=False, cls=['1sigma', '2sigma', '3sigma'], show_contours=True, show_const_critical=True, x_critical_values=None, critical_values=None, plot_surface=False, **kwargs):
         """
         Plot the Δχ² values in 1D or 2D.
 
@@ -630,7 +631,7 @@ class Loglikelihood:
         elif self.ndim() == 1 and from_pertoy:
             first_legend, second_legend = self._plot_1d_pertoy(ax, wtag, mo, itoy, band, show_legend, show_const_critical, **kwargs)
         elif self.ndim() == 2:
-            first_legend, second_legend = self._plot_2d(ax, wtag, mo, show_map, show_contours, cls, show_legend, **kwargs)
+            first_legend, second_legend = self._plot_2d(ax, wtag, mo, show_map, show_contours, cls, show_legend, plot_surface, **kwargs)
         else:
             raise ValueError(f"Plotting is only supported for 1D and 2D delta chi2. But the llh dimension is {self.ndim()}")  
         return first_legend, second_legend
@@ -789,7 +790,7 @@ class Loglikelihood:
             ax.text(0.03, 4.0, r'2$\sigma$', color='grey', fontsize=10, verticalalignment='bottom', horizontalalignment='left', transform=ax.get_yaxis_transform())
             ax.text(0.03, 9.1, r'3$\sigma$', color='grey', fontsize=10, verticalalignment='bottom', horizontalalignment='left', transform=ax.get_yaxis_transform())
         if wtag:
-            ax.set_title(tag, loc='right')
+            ax.set_title(cfg.CONFIG.tag, loc='right')
         return first_legend, second_legend
 
     def _plot_1d_pertoy(self, ax, wtag, mo, itoy, band, show_legend, show_const_critical, **kwargs):
@@ -820,7 +821,7 @@ class Loglikelihood:
             ax.set_xlabel(osc_param_name_to_xlabel[self.__param_name[0]][self.__mo]) 
         
         if wtag:
-            ax.set_title(tag, loc='right')
+            ax.set_title(cfg.CONFIG.tag, loc='right')
         ax.set_ylabel(r'$\Delta \chi^2$')
         show_minor_ticks(ax)
         ax.set_ylim(0)
@@ -861,20 +862,17 @@ class Loglikelihood:
             
         return None, None
 
-    def _plot_2d(self, ax, wtag, mo, show_map, show_contours, cls, show_legend, **kwargs):
-
+    def _plot_2d(self, ax, wtag, mo, show_map, show_contours, cls, show_legend, plot_surface, **kwargs):
 
         default_kwargs = { 'ax.plot'  : {0: {"color": color_mo[0], "label": mo_to_label[0]},
                                     1: {"color": color_mo[1], "label": mo_to_label[1]}},
-                      'ax.contour': {0: {'colors': [color_mo[0]]},
+                          'ax.contour': {0: {'colors': [color_mo[0]]},
                                      1: {'colors': [color_mo[1]]}},
-                      'ax.scatter': {0: {'color': [color_mo[0]], 'marker': 'x'},
+                          'ax.scatter': {0: {'color': [color_mo[0]], 'marker': 'x'},
                                      1: {'color': [color_mo[1]], 'marker': 'x'}},
-                   'ax.pcolormesh': {0: {'cmap': rev_afmhot},
+                          'ax.pcolormesh': {0: {'cmap': rev_afmhot},
                                      1: {'cmap': rev_afmhot}},
                      }
-
-        
         update_kwargs(default_kwargs, kwargs)
 
         def get_chi2_critical_values():
@@ -900,50 +898,19 @@ class Loglikelihood:
             
             ax.contourf(self.__grid[0], self.__grid[1], self.__dchi2[mo].T, levels=[0, critical_values[1]],  # Fill only the first region
                         zorder=0, alpha=0.25, **kwargs['ax.contour'][mo])
+
+        def plot_surface_for_mo(mo, **kwargs):
+            X, Y = np.meshgrid(self.__grid[0], self.__grid[1])
+            Z = self.__dchi2[mo].transpose()
+            surf = ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none')
+            ax.set_xlabel("X")
+            ax.set_ylabel("Y")
+            ax.set_zlabel("Z")
             
         def plot_map_for_mo(mo, **kwargs):
             mesh = ax.pcolormesh(self.__grid[0], self.__grid[1], self.__dchi2[mo].transpose(), zorder=0, **kwargs['ax.pcolormesh'][mo])
             cbar = plt.colorbar(mesh, ax=ax)
-                
-        critical_values, coverages = get_chi2_critical_values() 
-            
-        if show_map and mo is not None:
-            plot_map_for_mo(mo, **kwargs)
-            ax.scatter(*self.__min[mo], **kwargs['ax.scatter'][mo])
-            color = 'white'
-        elif show_map and mo is None:
-            raise ValueError(f"Tested mo is None. If you want to plot the heat map, mo should be specified")
 
-        if show_contours:
-            if mo in [0, 1]:
-                if mo in self.__dchi2.keys():
-                    plot_contour_for_mo(mo, **kwargs)
-                    ax.scatter(*self.__min[mo], **kwargs['ax.scatter'][mo])
-                else:
-                    raise ValueError(f"There is not dchi2 with mo={mo}")  
-            else:
-                for key in self.__dchi2.keys():
-                    plot_contour_for_mo(key, **kwargs)
-                    ax.scatter(*self.__min[key], **kwargs['ax.scatter'][key])
-                    ax.plot([], [], **kwargs['ax.plot'][key])
-
-        first_legend = None
-        second_legend = None
-        if show_legend:
-            first_legend = ax.legend(edgecolor='white', loc='upper left', frameon=True)
-            ax.add_artist(first_legend)
-            handles = []
-            for coverage in coverages:
-                handles.append(ax.plot([], [], label=level_to_label[coverage], ls=level_to_ls[coverage], color='black')[0])
-            handles.append(ax.scatter([], [], label='Best-fit',  color='black', marker='x'))  
-            second_legend = ax.legend(handles=handles, frameon=True,  ncol=1, fontsize=16, loc='upper right')
-            ax.add_artist(second_legend)
-        
-        
-        if wtag:
-            ax.set_title(tag, loc='right')
-
-        ind_to_axis = {0:'x', 1:'y'}
         def set_lim_ticks(axis, lim_min, lim_max, tick_min=None, tick_max=None, tick_step=None):
             if axis == 'x':
                 ax.set_xlim(lim_min, lim_max)
@@ -956,6 +923,53 @@ class Loglikelihood:
                 if axis == 'y':
                     ax.set_ylim(lim_min, lim_max) 
                     ax.set_yticks(np.arange(tick_min, tick_max, tick_step))
+                
+        critical_values, coverages = get_chi2_critical_values() 
+            
+        if show_map and mo is not None:
+            plot_map_for_mo(mo, **kwargs)
+            ax.scatter(*self.__min[mo], **kwargs['ax.scatter'][mo])
+            color = 'white'
+        elif show_map and mo is None:
+            raise ValueError(f"Tested mo is None. If you want to plot the heat map, mo should be specified")
+
+        if show_contours and not plot_surface:
+            if mo in [0, 1]:
+                if mo in self.__dchi2.keys():
+                    plot_contour_for_mo(mo, **kwargs)
+                    ax.scatter(*self.__min[mo], **kwargs['ax.scatter'][mo])
+                else:
+                    raise ValueError(f"There is not dchi2 with mo={mo}")  
+            else:
+                for key in self.__dchi2.keys():
+                    plot_contour_for_mo(key, **kwargs)
+                    ax.scatter(*self.__min[key], **kwargs['ax.scatter'][key])
+                    ax.plot([], [], **kwargs['ax.plot'][key])
+        
+        if plot_surface and mo is not None:
+            plot_surface_for_mo(mo, **kwargs)
+        elif plot_surface and mo is None:
+            raise ValueError(f"Tested mo is None. If you want to plot the surface, mo should be specified")
+
+
+        first_legend = None
+        second_legend = None
+        if show_legend and not plot_surface:
+            first_legend = ax.legend(edgecolor='white', loc='upper left', frameon=True)
+            ax.add_artist(first_legend)
+            handles = []
+            for coverage in coverages:
+                handles.append(ax.plot([], [], label=level_to_label[coverage], ls=level_to_ls[coverage], color='black')[0])
+            handles.append(ax.scatter([], [], label='Best-fit',  color='black', marker='x'))  
+            second_legend = ax.legend(handles=handles, frameon=True,  ncol=1, fontsize=16, loc='upper right')
+            ax.add_artist(second_legend)
+        
+        
+        if wtag:
+            ax.set_title(cfg.CONFIG.tag, loc='right')
+
+        ind_to_axis = {0:'x', 1:'y'}
+
                 
         for i in range(2):   
             if self.__param_name[i] == 'dm2':
