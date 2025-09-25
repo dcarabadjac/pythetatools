@@ -401,6 +401,7 @@ class Loglikelihood:
         self.__mo_treat = mo_treat
         self.__min = {}
         
+        
         # Validate 'mo_treat' argument
         if mo_treat not in ['joint', 'conditional']:
             raise ValueError("Invalid mo_treat: choose 'joint' or 'conditional'.")
@@ -416,6 +417,10 @@ class Loglikelihood:
         self.__mo = 'both' if len(self.__avnllh.keys()) == 2 else list(self.__avnllh.keys())[0]
         self.__dchi2_pertoy = self.__calculate_dchi2_pertoy(mo_treat)  
         self.__dchi2 = {key: value[itoy] for key, value in self.__dchi2_pertoy.items()} 
+        if self.ndim() == 1:
+            self.__SA = {key: value[itoy] for key, value in self.__dchi2_pertoy.items()}
+        else:
+            self.__SA = {}
 
     def _check_grid_size(self, other):
         return all(len(self.grid[i]) == len(other.grid[i]) for i in range(len(self.grid)))
@@ -473,6 +478,11 @@ class Loglikelihood:
     def dchi2(self):
         """Get the Δχ² values."""
         return self.__dchi2
+
+    @property
+    def SA(self):
+        """Get the Δχ² values in case of 1D and confidence contour in case 2D."""
+        return self.__SA
     
     @property
     def dchi2_pertoy(self):
@@ -898,6 +908,15 @@ class Loglikelihood:
             
             ax.contourf(self.__grid[0], self.__grid[1], self.__dchi2[mo].T, levels=[0, critical_values[1]],  # Fill only the first region
                         zorder=0, alpha=0.25, **kwargs['ax.contour'][mo])
+
+            contour_data = {}
+            for i, collection in enumerate(contour.collections):
+                level = coverages[i]
+                paths = collection.get_paths()
+                segments = [path.vertices.T for path in paths]  # Each is an (N, 2) array
+                contour_data[level] = segments  # Store list of arrays
+                
+            self.__SA[mo] = contour_data
 
         def plot_surface_for_mo(mo, **kwargs):
             X, Y = np.meshgrid(self.__grid[0], self.__grid[1])

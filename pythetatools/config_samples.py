@@ -21,10 +21,12 @@ sample_to_title = {'numu1R':r'FHC 1R$\mu$', 'nue1R':r'FHC 1Re', 'numubar1R':r'RH
                    'nuebar1R_320kA':r'$\bar{\nu}_e$ 1R 320 kA', 'numucc1pi_320kA':r'MR $\nu_\mu$CC$1\pi^{+} 320 kA$',
                    'nuecc1pi_320kA':r'$\nu_e$CC$1\pi^{+}$', 'nue1RD_320kA':r'$\nu_e$ 1R 1 d.e. 320kA'}
 
-analysis_type_to_xlabel = {'Erec':r'$E^\nu_{rec}$, [GeV]', 'P':r'$p_e$, [MeV/c]', 'Theta':r'$\theta$, [deg]', 'e-theta':r'$E^\nu_{rec}$, [GeV]', 'p-theta': r'$p_e$, [MeV/c]', 'PTheta': r'$p_e$, [MeV/c]'}
+analysis_type_to_xlabel = {'Erec':r'$E^\nu_{rec}$ [GeV]', 'P':r'$p_e$ [MeV/c]', 'Theta':r'$\theta$ [deg]', 'e-theta':r'$E^\nu_{rec}$ [GeV]', 'p-theta': r'$p_e$ [MeV/c]', 'PTheta': r'$p_e$ [MeV/c]'}
 analysis_type_to_xtickspos = {'Erec':np.arange(0, 3.5, 0.5), 'e-theta':np.arange(0, 3.5, 0.5), 'p-theta': np.arange(0, 1300, 200),
                               'P':np.arange(0, 1300, 200), 'Theta':np.arange(0, 200, 20), 'PTheta': np.arange(0, 1300, 200)}
-analysis_type_to_xmax = {'Erec':3, 'P':1300 ,'Theta':180, 'e-theta':3, 'p-theta': 1300,  'PTheta':1300}
+analysis_type_to_xmax = {'numu': {'Erec':3, 'P':1300 ,'Theta':180, 'e-theta':3, 'p-theta': 1300,  'PTheta':1300}, #for P it is not correct but anyway P observable is not used for numu flavour
+                         'nue': {'Erec':1.3, 'P':1300 ,'Theta':180, 'e-theta':1.3, 'p-theta': 1300,  'PTheta':1300},
+                        }
 analysis_type_to_xvar = {'Erec':'Erec', 'P':'p', 'Theta':r'$\theta$', 'e-theta':'Erec', 'p-theta': 'p', 'PTheta': 'p' }
 analysis_type_to_energyvar = {'Erec':'Erec', 'P':'p', 'Theta': None, 'e-theta':'Erec', 'p-theta': 'p', 'PTheta': 'p'} 
 analysis_type_to_anglevar = {'Erec':None, 'P':None, 'Theta': 'Theta', 'e-theta':'Theta', 'p-theta': 'Theta', 'PTheta':'Theta'}
