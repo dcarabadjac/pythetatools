@@ -1,5 +1,5 @@
-from .config import *
 from .config_samples import *
+from . import config as cfg
 from .config_visualisation import *
 from .base_visualisation import *
 from .base_analysis import divide_arrays
@@ -646,16 +646,16 @@ class UnbinnedSample:
             ax.set_title(sample_to_title[self.title], loc='left')
         if self.analysis_type is not None:
             _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
-            ax.set_xlim(0.001, analysis_type_to_xmax[self.analysis_type])
+            ax.set_xlim(0.001, analysis_type_to_xmax[sample_to_nuflav[self.sample_title]][self.analysis_type])
             ax.set_xlabel(analysis_type_to_xlabel[self.analysis_type])
         if wtag:
-            ax.set_title(tag, loc='right')
+            ax.set_title(cfg.CONFIG.tag, loc='right')
     
         _=ax.set_yticks([30*i for i in range(7)])                          
         ax.set_ylim(0, 180)
         ax.set_ylabel("Angle [degrees]")
         if wtag:
-            ax.set_title(tag, loc='right', fontsize=20)
+            ax.set_title(cfg.CONFIG.tag, loc='right', fontsize=20)
             
     def _plot_1d(self, ax, wtitle, wtag, **kwargs):
         """
@@ -977,10 +977,10 @@ class Sample:
             ax.set_title(sample_to_title[self.sample_title], loc='left')
         if self.analysis_type is not None:
             _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
-            ax.set_xlim(0.001, analysis_type_to_xmax[self.analysis_type])
+            ax.set_xlim(0.001, analysis_type_to_xmax[sample_to_nuflav[self.sample_title]][self.analysis_type])
             ax.set_xlabel(analysis_type_to_xlabel[self.analysis_type])
         if wtag:
-            ax.set_title(tag, loc='right')
+            ax.set_title(cfg.CONFIG.tag, loc='right')
     
         ax.autoscale(axis='y', tight=False)
         ax.set_ylim(bottom=0)
@@ -993,14 +993,14 @@ class Sample:
             ax.set_title(sample_to_title[self.sample_title], loc='left', fontsize=20)
         if self.analysis_type is not None:
             _=ax.set_xticks(analysis_type_to_xtickspos[self.analysis_type])
-            ax.set_xlim(0.001, analysis_type_to_xmax[self.analysis_type])
+            ax.set_xlim(0.001, analysis_type_to_xmax[sample_to_nuflav[self.sample_title]][self.analysis_type])
             ax.set_xlabel(analysis_type_to_xlabel[self.analysis_type])
 
         _=ax.set_yticks([30*i for i in range(7)])                          
         ax.set_ylim(0, 180)
         ax.set_ylabel("Angle, [degrees]")
         if wtag:
-            ax.set_title(tag, loc='right', fontsize=20)
+            ax.set_title(cfg.CONFIG.tag, loc='right', fontsize=20)
             
         xlim, ylim = ax.get_xlim(), ax.get_ylim()
         x_mask = (self.bin_edges[0][:-1] >= xlim[0]) & (self.bin_edges[0][1:] <= xlim[1])
