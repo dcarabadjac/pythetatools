@@ -1,0 +1,12 @@
+# Only needed if you want to download files from CC
+my_login: "dcarabad"
+my_domain: "cca.in2p3.fr"
+
+# Tag used for the plots
+tag: "OARun11B preliminary"
+dir_ver: "OA2024"
+
+# For Bievent plot
+oaver:  "OA2024"
+include_320kA: False
+data_kind: "data"

@@ -1,0 +1,6 @@
+# Only needed if you want to download files from CC
+my_login: "dcarabad"
+my_domain: "cca.in2p3.fr"
+
+# Tag used for the plots
+tag: "Sensitivity with 8.5e21 POT"
