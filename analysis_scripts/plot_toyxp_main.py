@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.ticker as ticker
 
-def plot_data_vs_bestfit_nominalbinning(path_to_data, path_to_asimovbf, save=True):
+def plot_data_vs_bestfit_nominalbinning(path_to_data, path_to_asimovbf, outdir_path, save=True):
     """
     Plots data vs expectation observables distribution in the nominal fitting binning
 
@@ -41,7 +41,7 @@ def plot_data_vs_bestfit_nominalbinning(path_to_data, path_to_asimovbf, save=Tru
         if save:
             fig.savefig(f"{outdir_path}/ToyXP_Data_vs_Bestfit_{dim}_{sample_title}.pdf", bbox_inches='tight')
 
-def plot_data_vs_bestfit_2D_withproj(path_to_data, path_to_asimovbf, save=True):
+def plot_data_vs_bestfit_2D_withproj(path_to_data, path_to_asimovbf, outdir_path, save=True):
     """
     Plots data vs expectation observables in 2D with 1D projections
 
@@ -121,7 +121,7 @@ def plot_data_vs_bestfit_2D_withproj(path_to_data, path_to_asimovbf, save=True):
             fig.savefig(f"{outdir_path}/ToyXP_Data_vs_Bestfit_with_proj_{sample_title}.pdf", bbox_inches='tight')
 
 
-def plot_data_vs_bestfit_1D(path_to_data, path_to_asimovbf, save=True):
+def plot_data_vs_bestfit_1D(path_to_data, path_to_asimovbf, outdir_path, save=True):
     """
     Plots data vs expectation observables in 2D with 1D projections
 
@@ -147,3 +147,41 @@ def plot_data_vs_bestfit_1D(path_to_data, path_to_asimovbf, save=True):
 
         if save:
             fig.savefig(f"{outdir_path}/ToyXP_Data_vs_Bestfit_1D_{sample_title}.pdf", bbox_inches='tight')
+
+def plot_n_histograms(paths_to_asimov, labels, postfix, colors, outdir_path, save=True):
+    """
+    Plots expectation observables in 1D projections
+    for multiple Asimov best-fit files.
+
+    Parameters
+    ----------
+    paths_to_asimov : list of str
+        List of paths to asimov best-fit files.
+    """
+
+    # Берём информацию о сэмплах из первого файла (считаем, что одинакова для всех)
+    samples_dict = toyxp.get_samples_info(paths_to_asimov[0])
+
+    # Загружаем все asimov best-fit
+    asimov_list = [
+        toyxp.load(path, kind="asimov", breakdown=False)
+        for path in paths_to_asimov
+    ]
+
+    for sample_title in samples_dict.keys():
+        fig, ax = plt.subplots()
+
+        # рисуем все best-fit гистограммы
+        for i, asimov in enumerate(asimov_list, start=0):
+            asimov[sample_title].project_to_x().plot(
+                ax, wtag=True, wtitle=True, label=labels[i], color=colors[i],
+            )
+
+        show_minor_ticks(ax)
+        ax.legend()
+
+        if save:
+            fig.savefig(
+                f"{outdir_path}/ToyXP_Asimov_1D_{sample_title}_{postfix}.pdf",
+                bbox_inches="tight"
+            )

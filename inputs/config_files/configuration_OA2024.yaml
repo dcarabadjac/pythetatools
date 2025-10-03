@@ -10,3 +10,5 @@ dir_ver: "OA2024"
 oaver:  "OA2024"
 include_320kA: False
 data_kind: "data"
+
+sample_titles: ['numu1R', 'nue1R', 'numubar1R', 'nuebar1R', 'numucc1pi', 'nuecc1pi']

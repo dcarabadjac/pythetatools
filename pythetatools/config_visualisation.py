@@ -73,3 +73,7 @@ dfbf_to_color = {'bestfit':{0: 'darkblue', 1:'brown' },
 
 mo_to_colors = {0: [lightblue, midblue,  darkblue,  'darkblue'], 
                 1: [lightorange,  midorange, darkorange,  'brown']}
+
+error_band_color = [darkblue, "#E73121"]
+error_band_hatch = [ "\\\\",  '///']
+flavour_to_xmax_errorbands = {'nue':1.3, 'numu':2.99}

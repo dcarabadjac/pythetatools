@@ -6,7 +6,7 @@ import subprocess
 import os
 import uproot
 import subprocess
-from .config import my_login, my_domain
+from .config import *
 
 def check_remote_path(remote_path, login, domain):
     # Check if the remote path is a file or directory using SSH
@@ -36,7 +36,7 @@ def create_destination_folder(destination):
         print(f"Destination folder already exists: {folder_path}")
 
 
-def download(input_path, destination, new_name=None, pattern='*', login=my_login, domain=my_domain, overwrite=False):
+def download(input_path, destination, new_name=None, pattern='*', login=CONFIG.my_login, domain=CONFIG.my_domain, overwrite=False):
     """Downloads a file or directory from the computing center's server with progress indication.
     
     Parameters
