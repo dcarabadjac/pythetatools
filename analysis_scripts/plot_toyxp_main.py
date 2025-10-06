@@ -4,7 +4,7 @@ from pythetatools.config_visualisation import *
 from pythetatools.base_visualisation import show_minor_ticks, plot_histogram, plot_data, plot_stacked_samples
 from pythetatools.base_analysis import divide_arrays, poisson_error_bars
 
-from pythetatools.config_samples import sample_to_title
+from pythetatools.config_samples import sample_to_title, sample_to_nuflav
 from pythetatools.file_manager import read_histogram
 from pythetatools.config_samples import inter2_to_label, flavour_to_label
 
@@ -231,4 +231,51 @@ def plot_toyxp_per_int_mode_or_oscchannel(filename_asimov, filename_data, kind, 
         if save:
             fig.savefig(f'{outdir_path}/{sample_title}_axis{axis}_per_int_modes{postfix}.pdf', bbox_inches='tight')
 
+
+
+def plot_osc_vs_noosc_samples(filepath_asimovbf, filepath_asimovnoosc, filepath_data, outdir_path, axis='energy'):
+    samples_dict = toyxp.get_samples_info(filepath_asimovbf, sample_titles=CONFIG.sample_titles)
+    
+    asimov_dataset_noosc = toyxp.load(filepath_asimovnoosc, kind="asimov", samples_dict=samples_dict)
+    asimov_dataset_bf = toyxp.load(filepath_asimovbf, kind="asimov", samples_dict=samples_dict)
+    data = toyxp.load(filepath_data, kind="data",  samples_dict=samples_dict)
+    
+    asimov_noosc_1D = toyxp.project_all_samples(asimov_dataset_noosc, axis)
+    asimov_bf_1D = toyxp.project_all_samples(asimov_dataset_bf, axis)
+    data_1D = toyxp.project_all_samples(data, axis)
+    
+    for sample_title in CONFIG.sample_titles:
+        fig = plt.figure(figsize=(10, 10))
+    
+        gs = gridspec.GridSpec(2, 1, height_ratios=[2, 1])  # The first subplot will be twice as large as the second
+        ax1 = fig.add_subplot(gs[0])  
+        ax2 = fig.add_subplot(gs[1])  
+        
+        asimov_noosc_1D[sample_title].plot(ax1, label='No oscillations', ls='--', color=bluish_green)
+        asimov_bf_1D[sample_title].plot(ax1, label='With oscillations', color=vermilion)
+        data_1D[sample_title].plot(ax1, wtag=True, kind='data', label='Data')
+        
+        (asimov_noosc_1D[sample_title]/asimov_noosc_1D[sample_title]).plot(ax2, wtitle=False, wtag=False,
+                                                label='No oscillations', ls='--', color=bluish_green)
+        (asimov_bf_1D[sample_title]/asimov_noosc_1D[sample_title]).plot(ax2, wtitle=False, wtag=False,
+                                                label='With oscillations', color=vermilion)
+        
+        yerr = [divide_arrays(poisson_error_bars(data_1D[sample_title].z, 1-0.6827)[i],
+                              asimov_noosc_1D[sample_title].z) for i in range(2)]
+        (data_1D[sample_title]/asimov_noosc_1D[sample_title]).plot(ax2, kind='data', wtitle=False, wtag=False,
+                                                                   yerr=yerr, label='Data')
+        
+        
+        show_minor_ticks(ax1)
+        show_minor_ticks(ax2)
+        ax1.legend()
+        ax1.set_xticklabels([])  
+        ax1.set_xlabel('')  
+        if sample_to_nuflav[sample_title] == 'numu':
+            ax2.set_ylim(0, 4.5)
+        else:
+            ax2.set_ylim(0, 8)
+        ax2.set_ylabel('Ratio to No Osc.')
+        plt.subplots_adjust(hspace=0)
+        fig.savefig(f'{outdir_path}/{sample_title}_BF_vs_Data_vs_Nosoc_axis{axis}.pdf', bbox_inches='tight')
 
