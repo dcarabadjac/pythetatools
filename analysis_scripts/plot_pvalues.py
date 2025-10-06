@@ -522,3 +522,44 @@ def plot_CPC_dchi2(base_dir_data,
     if save:
         fig.savefig(f'{outdir_path}/CPC_test_dchi2_distrs_truemh{true_mh}_mode{mode}{postfix_chi2[plot_chi2]}.pdf', bbox_inches='tight')
 
+
+def plot_GOF_dchi2(base_dir_toys, base_dir_data, rate_only, outdir_path, save=True):
+    #Load toys
+    file_pattern = f"{base_dir_toys}/marg*.root"
+    grid_x, avnllh, param_name = likelihood.load_1D_array(file_pattern)
+    avnllh = avnllh.reshape(avnllh.size//2, 2) 
+    llhood = np.exp(-avnllh)
+    llhood_marginal = simps(llhood, [0, 1], axis=1) #Marginalize over MO
+    avnllh = -np.log(llhood_marginal)
+
+    #Load data value
+    file_pattern = f"{base_dir_data}/marg*.root"
+    grid_x, avnllh_df, param_name = likelihood.load_1D_array(file_pattern)
+    avnllh_df = avnllh_df.reshape(avnllh_df.size//2, 2) 
+    llhood = np.exp(-avnllh_df)
+    llhood_marginal = simps(llhood, [0, 1], axis=1) #Marginalize over MO
+    avnllh_df = -np.log(llhood_marginal)
+
+    fig, ax = plt.subplots()
+    
+    chi2 = 2*avnllh
+    chi2_data = 2*avnllh_df[0]
+    
+    plot_dchi2_distr(ax, chi2, chi2_data, 0, "Expected distribution", left=False, hypothesis='GoF-rate')
+    ax.axvline(chi2_data, color='black', 
+                   label=f'Data result', ls='--', linewidth=2)
+
+    if rate_only:
+        ax.set_xlabel('$\chi^2_{rate}$')
+        postfix = 'rateonly'
+    else:
+        ax.set_xlabel('$\chi^2_{rate+shape}$')
+        postfix = 'rateshape'
+        
+    p0 = get_pvalue(avnllh, avnllh_df, side='right')
+    ax.text(0.75, 0.73, f'$p_{{0}}$={round_to_3(p0)}', transform=ax.transAxes, fontsize=20 )
+    
+    ax.legend()
+    if save:
+        fig.savefig(f'{outdir_path}/GOF_test_chi2_distr_{postfix}.pdf', bbox_inches='tight')
+    
