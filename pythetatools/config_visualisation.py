@@ -63,7 +63,7 @@ level_to_hatch = {0.6827:'/', 0.9:'\\\\', 0.9545:'XX', 0.9973:'++++'}
 level_to_color = {0:{0.6827:darkblue, 0.9:midblue, 0.9545:lightblue, 0.9973:verylightblue},
                   1:{0.6827:darkorange, 0.9:midorange, 0.9545:lightorange, 0.9973:verylightorange},}
 level_to_label = {0.6827:'68.27% C.L.', 0.9:'90.00% C.L.', 0.9545:'95.45% C.L.', 0.9973:'99.73% C.L.'}
-level_to_ls = {0.6827:'--', 0.9:'dashdot', 0.9545:'-', 0.9973:'dotted'}
+level_to_ls = {0.6827:'--', 0.9:'-', 0.9545:'dashdot', 0.9973:'dotted'}
 
 critval_level_to_color = {0: {0.6827: lightblue, 0.9: midblue, 0.9545: darkblue, 0.9973: 'darkblue'}, 
           1: {0.6827: lightorange, 0.9: midorange, 0.9545: darkorange, 0.9973: 'brown'}}

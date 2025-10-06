@@ -615,7 +615,7 @@ class Loglikelihood:
         """
         return len(self.__grid)
 
-    def plot(self, ax, wtag=False, mo=None, from_pertoy=False, itoy=0, band=False, show_legend=True, show_map=False, cls=['1sigma', '2sigma', '3sigma'], show_contours=True, show_const_critical=True, x_critical_values=None, critical_values=None, plot_surface=False, **kwargs):
+    def plot(self, ax, wtag=False, mo=None, from_pertoy=False, itoy=0, band=False, show_legend=True, show_map=False, cls=['1sigma', '90%', '2sigma', '3sigma'], show_contours=True, show_const_critical=True, x_critical_values=None, critical_values=None, plot_surface=False, **kwargs):
         """
         Plot the Δχ² values in 1D or 2D.
 
@@ -903,8 +903,9 @@ class Loglikelihood:
             return critical_values, coverages
 
         def plot_contour_for_mo(mo, **kwargs):
+            lss = [level_to_ls[coverage] for coverage in coverages]
             contour = ax.contour(self.__grid[0], self.__grid[1], self.__dchi2[mo].transpose(), 
-                                 levels=critical_values, zorder=1, linestyles=['--', '-', 'dotted'], **kwargs['ax.contour'][mo])
+                                 levels=critical_values, zorder=1, linestyles=lss, **kwargs['ax.contour'][mo])
             
             ax.contourf(self.__grid[0], self.__grid[1], self.__dchi2[mo].T, levels=[0, critical_values[1]],  # Fill only the first region
                         zorder=0, alpha=0.25, **kwargs['ax.contour'][mo])

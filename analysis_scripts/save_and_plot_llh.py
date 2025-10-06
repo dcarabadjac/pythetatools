@@ -205,8 +205,9 @@ def smear_contour(indir, smear_factor=3.3e-5, compile=False):
         print(f"Saved {output_file}")
 
 
-def plot_dchi2(indir, outdir_path, outdir_files_path, mode, prefix='', mo='both', FC_filetemplate=None, smeared=False, smear_factor=None, save=False,
-                       input_type='cont', filename=None, param=None, wRC=True, plot_surface=False, save_root_file=True): 
+def plot_dchi2(indir, outdir_path, outdir_files_path, mode, prefix='', mo='both', FC_filetemplate=None, 
+               smeared=False, smear_factor=None, save=False, input_type='cont', filename=None, param=None,
+               wRC=True, plot_surface=False, save_root_file=True): 
 
     smeared_postfix = {False: '', True: f'_smeared_{smear_factor}'}
 
