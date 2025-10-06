@@ -7,6 +7,7 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
+   pythetatools.HK_CPV_vs_truedcp
    pythetatools.base_analysis
    pythetatools.base_visualisation
    pythetatools.config
@@ -18,6 +19,7 @@ Submodules
    pythetatools.file_manager
    pythetatools.likelihood
    pythetatools.pvalues
+   pythetatools.sigma_var
    pythetatools.toyxp
 
 Module contents

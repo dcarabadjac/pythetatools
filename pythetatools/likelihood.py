@@ -24,7 +24,7 @@ from matplotlib import pyplot as plt
 import ROOT #is needed to write files
 
 
-def load_from_cont(indir, smeared, smear_factor):
+def load_from_cont(indir, smeared=False, smear_factor=None):
     """
     Load AvNLLtot values from cont histograms stored in hist.root files.
 
@@ -213,6 +213,32 @@ def load(file_pattern, mo="both"):
     return grid, AvNLLtot, param_name
 
 def load_1D_array(file_pattern):
+    """
+    Load and structure 1D likelihood scan data from files matching a given pattern.
+
+    This function loads output of MargTemple results (using the `load` function)
+    and organizes them into NumPy arrays.
+    It assumes that the loaded data correspond to a 1D parameter scan and combines
+    likelihood values for different testes parameter value, different toys into a single array.
+
+    Parameters
+    ----------
+    file_pattern : str
+        Path pattern or filename pattern used by the `load` function to locate
+        the saved likelihood data files.
+
+    Returns
+    -------
+    grid_x : ndarray
+        Array of grid points corresponding to the scanned oscillation parameter.
+    AvNLL_pergrid_pertoy : ndarray of shape (N_grid, 2)
+        Combined array of average negative log-likelihood values for each grid point
+        and each toy or mass ordering. The second dimension corresponds to the two datasets
+        loaded from `avnllh[0]` and `avnllh[1]`.
+    param_name_x : str
+        Name of the oscillation parameter associated with the grid (e.g., 'sin2213').
+    """
+    
     grid, avnllh, param_name = load(file_pattern)
 
     AvNLL_pergrid_pertoy = np.stack([avnllh[0], avnllh[1]], axis=1)
@@ -222,7 +248,31 @@ def load_1D_array(file_pattern):
     return grid_x, AvNLL_pergrid_pertoy, param_name_x
 
 def save_avnll_hist(llh, outdir):
-    #Save here like in C++ macro. It is done to use Smear.C. Ideally Smear.C should be rewritten to Python
+    """
+    Save average -2ln(L) likelihood histograms to ROOT files
+
+    Parameters
+    ----------
+    llh : Log-likelihood object
+        Data to be written
+    outdir : str
+        Output directory where ROOT files will be saved.
+
+    Notes
+    -----
+    - Each mass ordering (NH/IH) produces one ROOT file named 'hist.root' or 'hist_IH.root'.
+    - The output ROOT file includes:
+        * The histogram object named "cont" (TH1D or TH2D).
+        * TParameter<int> objects specifying the oscillation parameter enum values.
+        * TObjString objects specifying the parameter names.
+    - The produced files are compatible with the C++ macro `Smear.C`.
+
+    Example
+    -------
+    >>> save_avnll_hist(llh_result, 'output')
+    Histograms saved to ROOT files.
+
+    """
     class OscParam:
         not_defined = -1
         sin2213 = 0
@@ -313,6 +363,35 @@ def save_avnll_hist(llh, outdir):
 
 
 def transform_s2213_to_sin213(grid, param_name):
+    """
+    Transform oscillation parameter grid from sin²(2θ₁₃) to sin²(θ₁₃), if applicable.
+
+    This function scans the provided parameter grid and, if the parameter list includes
+    'sin2213', performs the transformation:
+        sin²(θ₁₃) = 0.5 * (1 - sqrt(1 - sin²(2θ₁₃))).
+
+    The function updates both the grid and the corresponding parameter names.
+
+    Parameters
+    ----------
+    grid : list of ndarray
+        List of 1D NumPy arrays defining the grid of parameter values.
+        Each array corresponds to one scanned oscillation parameter.
+    param_name : list of str
+        List of parameter names (e.g., ['sin2213', 'delta']).
+
+    Returns
+    -------
+    new_grid : list of ndarray
+        The transformed grid. For 'sin2213', values are converted to sin²(θ₁₃).
+    new_param_name : list of str
+        The updated list of parameter names where 'sin2213' is replaced by 'sin213'.
+
+    Notes
+    -----
+    - If 'sin2213' is not present in `param_name`, the function returns the input grid
+      and parameter names unchanged.
+    """
     new_grid = []
     new_param_name = []
     if 'sin2213' in param_name:
@@ -329,33 +408,6 @@ def transform_s2213_to_sin213(grid, param_name):
         print('Tranformation will not be done as in your param_name there is not sin2213')
         return grid, param_name
 
-def update_kwargs(default_kwargs, kwargs):
-    """
-    Updates kwargs by adding missing keys from default_kwargs
-    while keeping existing user-defined values intact.
-    
-    Parameters:
-    -----------
-    default_kwargs : dict
-        Dictionary containing the default keyword arguments.
-    kwargs : dict
-        Dictionary with user-specified overrides.
-    
-    Returns:
-    --------
-    None (modifies kwargs in place).
-    """
-    for plot_type, defaults in default_kwargs.items():
-        if plot_type not in kwargs:
-            kwargs[plot_type] = {}
-    
-        for key, default_args in defaults.items():
-            if key not in kwargs[plot_type]:
-                kwargs[plot_type][key] = default_args.copy()  # Copy default values
-            else:
-                for arg, value in default_args.items():
-                    if arg not in kwargs[plot_type][key]:  # Only update missing arguments
-                        kwargs[plot_type][key][arg] = value
 
 class Loglikelihood:
     """
@@ -461,7 +513,7 @@ class Loglikelihood:
 
     @property
     def avnllh_pertoy(self):
-        """Get the AvNLLH values."""
+        """Get the AvNLLH values for each toy."""
         return self.__avnllh_pertoy
     
     @property
@@ -486,7 +538,7 @@ class Loglikelihood:
     
     @property
     def dchi2_pertoy(self):
-        """Get the Δχ² values."""
+        """Get the Δχ² values for each toy."""
         return self.__dchi2_pertoy
 
     @property
@@ -496,7 +548,7 @@ class Loglikelihood:
         
     @property
     def min(self):
-        """Get the tested mass ordering hypotheses."""
+        """Get the minimum point (x coordinate) of the negative log-likelihood."""
         return self.__min
 
     def __swap_grid_and_param(self):
@@ -754,7 +806,7 @@ class Loglikelihood:
                                     1: {"color": color_mo[1], "label": mo_to_label[1]}}
                      }
         
-        update_kwargs(default_kwargs, kwargs)
+        __update_kwargs(default_kwargs, kwargs)
 
         if critical_values is not None:
             plot_CI_shading()
@@ -883,7 +935,7 @@ class Loglikelihood:
                           'ax.pcolormesh': {0: {'cmap': rev_afmhot},
                                      1: {'cmap': rev_afmhot}},
                      }
-        update_kwargs(default_kwargs, kwargs)
+        __update_kwargs(default_kwargs, kwargs)
 
         def get_chi2_critical_values():
             critical_values = []
@@ -1008,7 +1060,34 @@ class Loglikelihood:
         show_minor_ticks(ax)
 
         return first_legend, second_legend
-    
+
+    def __update_kwargs(default_kwargs, kwargs):
+        """
+        Updates kwargs by adding missing keys from default_kwargs
+        while keeping existing user-defined values intact.
+        
+        Parameters:
+        -----------
+        default_kwargs : dict
+            Dictionary containing the default keyword arguments.
+        kwargs : dict
+            Dictionary with user-specified overrides.
+        
+        Returns:
+        --------
+        None (modifies kwargs in place).
+        """
+        for plot_type, defaults in default_kwargs.items():
+            if plot_type not in kwargs:
+                kwargs[plot_type] = {}
+        
+            for key, default_args in defaults.items():
+                if key not in kwargs[plot_type]:
+                    kwargs[plot_type][key] = default_args.copy()  # Copy default values
+                else:
+                    for arg, value in default_args.items():
+                        if arg not in kwargs[plot_type][key]:  # Only update missing arguments
+                            kwargs[plot_type][key][arg] = value
         
 
 
