@@ -1,9 +1,12 @@
 import pythetatools.toyxp as toyxp
 from pythetatools.config import *
 from pythetatools.config_visualisation import *
-from pythetatools.base_visualisation import show_minor_ticks, plot_histogram, plot_data
+from pythetatools.base_visualisation import show_minor_ticks, plot_histogram, plot_data, plot_stacked_samples
+from pythetatools.base_analysis import divide_arrays, poisson_error_bars
+
 from pythetatools.config_samples import sample_to_title
 from pythetatools.file_manager import read_histogram
+from pythetatools.config_samples import inter2_to_label, flavour_to_label
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -185,3 +188,47 @@ def plot_n_histograms(paths_to_asimov, labels, postfix, colors, outdir_path, sav
                 f"{outdir_path}/ToyXP_Asimov_1D_{sample_title}_{postfix}.pdf",
                 bbox_inches="tight"
             )
+
+def get_labels(sample_per_mode, kind):
+    labels = []
+    if kind=='inter':
+        dict_to_labels = inter2_to_label
+    elif kind=='flavour':
+        dict_to_labels = flavour_to_label
+        
+    for sample in sample_per_mode.samples:
+        mode_name = sample.title[len(sample.sample_title)+1:]
+        labels.append(dict_to_labels[mode_name])   
+    return labels
+
+
+def plot_toyxp_distr_breakdown(ax, sample_per_mode, kind, data_sample=None):
+    labels = get_labels(sample_per_mode, kind)
+    plot_stacked_samples(ax, sample_per_mode.samples, labels=labels)
+    if data_sample:
+        data_sample.plot(ax, wtag=True, kind='data')
+    show_minor_ticks(ax)
+    ax.legend(loc='best')
+
+
+def plot_toyxp_per_int_mode_or_oscchannel(filename_asimov, filename_data, kind, outdir_path, axis='energy', postfix='AsimovA22_postBanff', save=True):
+    samples_dict = toyxp.get_samples_info(filename_asimov, sample_titles=CONFIG.sample_titles)
+    asimov_dataset = toyxp.load(filename_asimov, kind="asimov", samples_dict=samples_dict, breakdown=True)
+    data = toyxp.load(filename_data, kind="data",  samples_dict=samples_dict)
+    asimov_1D = toyxp.project_all_samples(asimov_dataset, axis)
+
+    if kind=='inter':
+        toy_brokedown= toyxp.merge_for_inter_plotting(asimov_1D)
+    else:
+        toy_brokedown = toyxp.merge_for_flavour_plotting(asimov_1D)
+    data_1D = toyxp.project_all_samples(data, axis)
+
+    for sample_title in asimov_1D.sample_titles:
+        sample_per_int_mode = toy_brokedown.filter_by_sample_title(sample_title)
+        
+        fig, ax = plt.subplots()
+        plot_toyxp_distr_breakdown(ax, sample_per_int_mode, kind, data_1D[sample_title])
+        if save:
+            fig.savefig(f'{outdir_path}/{sample_title}_axis{axis}_per_int_modes{postfix}.pdf', bbox_inches='tight')
+
+
