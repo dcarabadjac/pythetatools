@@ -998,7 +998,7 @@ class Sample:
 
         _=ax.set_yticks([30*i for i in range(7)])                          
         ax.set_ylim(0, 180)
-        ax.set_ylabel("Angle, [degrees]")
+        ax.set_ylabel("Angle [degrees]")
         if wtag:
             ax.set_title(cfg.CONFIG.tag, loc='right', fontsize=20)
             

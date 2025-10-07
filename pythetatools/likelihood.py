@@ -9,7 +9,7 @@ import numpy as np
 from . import config as cfg
 from .config_visualisation import *
 from .config_osc_params import *
-from .base_analysis import find_parabold_vertex, sigma_to_CL, CL_to_chi2critval
+from .base_analysis import find_parabold_vertex, sigma_to_CL, CL_to_chi2critval, divide_arrays
 from .base_visualisation import show_minor_ticks
 from .file_manager import read_cont, read_histogram
 
@@ -478,18 +478,18 @@ class Loglikelihood:
         return all(len(self.grid[i]) == len(other.grid[i]) for i in range(len(self.grid)))
         
     def __add__(self, other):
-        if isinstance(other, Loglikelihood) and  _check_grid_size(self, other):
+        if isinstance(other, Loglikelihood) and  self._check_grid_size(other):
             return Loglikelihood(self.grid, self.avnllh_pertoy + other.avnllh_pertoy, self.param_name, self.__mo_treat)
         raise ValueError("Incompatible types or sizes of operands")
         
     def __sub__(self, other):
-        if isinstance(other, Loglikelihood) and _check_grid_size(self, other):
+        if isinstance(other, Loglikelihood) and self._check_grid_size(other):
             result = {key: self.avnllh_pertoy[key] - other.avnllh_pertoy[key] for key in self.avnllh_pertoy.keys()}
             return Loglikelihood(self.grid, result, self.param_name, self.__mo_treat)
         raise ValueError("Incompatible types or sizes of operands")
         
     def __truediv__(self, other):
-        if isinstance(other, Loglikelihood) and _check_grid_size(self, other):
+        if isinstance(other, Loglikelihood) and self._check_grid_size(other):
             result = {}
             for key in self.avnllh_pertoy.keys():
                 result[key] = divide_arrays(self.avnllh_pertoy[key], other.avnllh_pertoy[key])
@@ -806,7 +806,7 @@ class Loglikelihood:
                                     1: {"color": color_mo[1], "label": mo_to_label[1]}}
                      }
         
-        __update_kwargs(default_kwargs, kwargs)
+        self.__update_kwargs(default_kwargs, kwargs)
 
         if critical_values is not None:
             plot_CI_shading()
@@ -935,7 +935,7 @@ class Loglikelihood:
                           'ax.pcolormesh': {0: {'cmap': rev_afmhot},
                                      1: {'cmap': rev_afmhot}},
                      }
-        __update_kwargs(default_kwargs, kwargs)
+        self.__update_kwargs(default_kwargs, kwargs)
 
         def get_chi2_critical_values():
             critical_values = []
@@ -1061,7 +1061,7 @@ class Loglikelihood:
 
         return first_legend, second_legend
 
-    def __update_kwargs(default_kwargs, kwargs):
+    def __update_kwargs(self, default_kwargs, kwargs):
         """
         Updates kwargs by adding missing keys from default_kwargs
         while keeping existing user-defined values intact.

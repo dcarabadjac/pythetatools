@@ -68,4 +68,4 @@ def plot_errorbands(indirs, labels, outdir_path, group='all', nfiles = 100, save
                 suffix = f"{labels[0]}_vs_{labels[1]}"
             else:
                 suffix = f"{labels[0]}"
-            fig.savefig(f'{outdir_path}/ErrorBars_{sample_title}_{suffix}.pdf', bbox_inches='tight')
+            fig.savefig(f'{outdir_path}/ErrorBands_{sample_title}_{suffix}.pdf', bbox_inches='tight')
