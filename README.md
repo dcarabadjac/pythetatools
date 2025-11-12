@@ -1,3 +1,5 @@
+This repository is a public copy of the original project developed under the P-theta organisation.
+
 # pythetatools
 pythetatools is a Python package providing post-fit analysis and drawing tools for P-theta analysis outputs.
 
